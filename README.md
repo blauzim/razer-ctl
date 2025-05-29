@@ -1,16 +1,11 @@
-> [!IMPORTANT]  
-> I no longer own a Razer laptop, feel free to reach out if interested in maintaining the project.
-
 # Razer Blade control utility
 
-For those of you who
-* own a Razer Blade 16 2023 or Razor Blade 14 2023
-* use Windows 11
-* Razer Synapse 3 (including the Beta) makes your eyes bleed
-* baffled by why your fans are always at full-throttle
-* and the battery depletes in just an hour
+This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so yuour milage may vary. 
 
-I have great news. I've reverse-engineered the Razer protocol and have crafted an alternative solution. A drop-in predictable and compact Razer Synapse alternative.
+The supported devices are :
+* Razer Blade 16 2025
+* Razer Blade 16 2023
+* Razer Blade 14 2023
 
 ## What can it control?
 
@@ -28,6 +23,7 @@ Run `razer-cli enumerate` to get PID.
 Then `razer-cli -p 0xPID info` to check if the application works for your Razer device.
 
 Special thanks to
+* [tdakhran](https://github.com/tdakran) for the original code for this fork [repository](https://github.com/tdakhran/razer-ctl)
 * [openrazer](https://github.com/openrazer) for [Reverse-Engineering-USB-Protocol](https://github.com/openrazer/openrazer/wiki/Reverse-Engineering-USB-Protocol)
 * [Razer-Linux](https://github.com/Razer-Linux/razer-laptop-control-no-dkms) for USB HID protocol implementation
 
