@@ -14,8 +14,8 @@ fn _send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
 }
 
 fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Result<()> {
-    if (fan_mode == FanMode::Manual) && (perf_mode != PerfMode::Balanced) {
-        bail!("{:?} allowed only in {:?}", fan_mode, PerfMode::Balanced);
+    if (fan_mode == FanMode::Manual) && (perf_mode != PerfMode::Balanced && perf_mode != PerfMode::Performance) {
+        bail!("{:?} allowed only in {:?} or {:?}", fan_mode, PerfMode::Balanced, PerfMode::Performance);
     }
 
     [1, 2].into_iter().try_for_each(|zone| {
@@ -96,9 +96,10 @@ pub fn get_gpu_boost(device: &Device) -> Result<GpuBoost> {
 pub fn set_fan_rpm(device: &Device, rpm: u16) -> Result<()> {
     ensure!((2000..=5000).contains(&rpm));
     ensure!(
-        get_perf_mode(device)? == (PerfMode::Balanced, FanMode::Manual),
-        "Performance mode must be {:?} and fan mode must be {:?}",
+        get_perf_mode(device)? == (PerfMode::Balanced, FanMode::Manual) || get_perf_mode(device)? == (PerfMode::Performance, FanMode::Manual),
+        "Performance mode must be {:?},{:?} and fan mode must be {:?}",
         PerfMode::Balanced,
+        PerfMode::Performance,
         FanMode::Manual
     );
     [FanZone::Zone1, FanZone::Zone2]
@@ -129,11 +130,12 @@ pub fn get_max_fan_speed_mode(device: &Device) -> Result<MaxFanSpeedMode> {
 
 pub fn set_fan_mode(device: &Device, mode: FanMode) -> Result<()> {
     ensure!(
-        get_perf_mode(device)?.0 == PerfMode::Balanced,
-        "Performance mode must be {:?}",
-        PerfMode::Balanced
+        get_perf_mode(device)?.0 == PerfMode::Balanced || get_perf_mode(device)?.0 == PerfMode::Performance,
+        "Performance mode must be {:?} or {:?}",
+        PerfMode::Balanced,
+        PerfMode::Performance
     );
-    _set_perf_mode(device, PerfMode::Balanced, mode)
+    _set_perf_mode(device, get_perf_mode(device)?.0, mode)
 }
 
 pub fn custom_command(device: &Device, command: u16, args: &[u8]) -> Result<()> {
