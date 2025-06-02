@@ -48,6 +48,19 @@ pub const SUPPORTED: &[Descriptor] = &[
             "perf",
         ],
     },
+    Descriptor {
+        model_number_prefix: "RZ09-05289",
+        name: "Razer Blade 16” (2025) 5080",
+        pid: 0x02c6,
+        features: &[
+            "battery-care",
+            "fan",
+            "kbd-backlight",
+            "lid-logo",
+            "lights-always-on",
+            "perf",
+        ],
+    }
 ];
 
 const _VALIDATE_FEATURES: () = {
