@@ -18,8 +18,6 @@ fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Re
         bail!("{:?} allowed only in {:?} or {:?}", fan_mode, PerfMode::Balanced, PerfMode::Performance);
     }
 
-    println!("perf {:?} fan {:?}", perf_mode, fan_mode);
-
     [1, 2].into_iter().try_for_each(|zone| {
         _send_command(
             device,
