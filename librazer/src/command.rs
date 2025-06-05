@@ -14,7 +14,7 @@ fn _send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
 }
 
 fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Result<()> {
-    if (fan_mode == FanMode::Manual) && (perf_mode != PerfMode::Balanced && perf_mode != PerfMode::Performance) {
+    if (fan_mode == FanMode::Manual) && !(perf_mode == PerfMode::Balanced || perf_mode == PerfMode::Performance) {
         bail!("{:?} allowed only in {:?} or {:?}", fan_mode, PerfMode::Balanced, PerfMode::Performance);
     }
 

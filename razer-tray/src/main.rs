@@ -31,11 +31,11 @@ enum FanSpeed {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 enum PerfMode {
+    Battery,
     Silent,
     Balanced(FanSpeed),
     Performance(FanSpeed),
     Custom(CpuBoost, GpuBoost, MaxFanSpeedMode),
-    Battery,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -55,8 +55,8 @@ struct DeviceState {
 impl DeviceState {
     fn read(device: &device::Device) -> Result<Self> {
         let perf_mode = match command::get_perf_mode(device)? {
-            (librazer::types::PerfMode::Silent, _) => PerfMode::Silent,
             (librazer::types::PerfMode::Battery, _) => PerfMode::Battery,
+            (librazer::types::PerfMode::Silent, _) => PerfMode::Silent,
             (librazer::types::PerfMode::Balanced, librazer::types::FanMode::Auto) => {
                 PerfMode::Balanced(FanSpeed::Auto)
             }
@@ -96,8 +96,8 @@ impl DeviceState {
 
     fn apply(&self, device: &device::Device) -> Result<()> {
         match self.perf_mode {
-            PerfMode::Silent => command::set_perf_mode(device, librazer::types::PerfMode::Silent),
             PerfMode::Battery => command::set_perf_mode(device, librazer::types::PerfMode::Battery),
+            PerfMode::Silent => command::set_perf_mode(device, librazer::types::PerfMode::Silent),
             PerfMode::Balanced(FanSpeed::Auto) => {
                 command::set_perf_mode(device, librazer::types::PerfMode::Balanced)
             }
@@ -161,13 +161,13 @@ impl DeviceState {
 impl Default for DeviceState {
     fn default() -> Self {
         Self {
-            perf_mode: PerfMode::Balanced(FanSpeed::Auto),
+            perf_mode: PerfMode::Performance(FanSpeed::Auto),
             lights_mode: LightsMode {
                 logo_mode: LogoMode::Off,
                 keyboard_brightness: 0,
                 always_on: LightsAlwaysOn::Disable,
             },
-            battery_care: BatteryCare::Disable,
+            battery_care: BatteryCare::Enable,
         }
     }
 }
@@ -250,8 +250,8 @@ impl ProgramState {
             },
         );
         // balanced
-        let fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "fan_speed:auto",
+        let bal_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
+            "bal_fan_speed:auto",
             "Fan: Auto",
             dstate.perf_mode != PerfMode::Balanced(FanSpeed::Auto),
             dstate.perf_mode == PerfMode::Balanced(FanSpeed::Auto),
@@ -259,7 +259,7 @@ impl ProgramState {
         )]
         .into_iter()
         .chain((2000..=5000).step_by(500).map(|rpm| {
-            let event_id = format!("fan_speed:{}", rpm);
+            let event_id = format!("bal_fan_speed:{}", rpm);
             event_handlers.insert(
                 event_id.clone(),
                 DeviceState {
@@ -277,7 +277,7 @@ impl ProgramState {
         }))
         .collect();
         event_handlers.insert(
-            "fan_speed:auto".to_string(),
+            "bal_fan_speed:auto".to_string(),
             DeviceState {
                 perf_mode: PerfMode::Balanced(FanSpeed::Auto),
                 ..*dstate
@@ -287,14 +287,14 @@ impl ProgramState {
         perf_modes.append(&Submenu::with_items(
             "Balanced",
             true,
-            &fan_speeds
+            &bal_fan_speeds
                 .iter()
                 .map(|i| i as &dyn IsMenuItem)
                 .collect::<Vec<_>>(),
         )?)?;
         // Performance
-        let fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "fan_speed:auto",
+        let perf_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
+            "perf_fan_speed:auto",
             "Fan: Auto",
             dstate.perf_mode != PerfMode::Performance(FanSpeed::Auto),
             dstate.perf_mode == PerfMode::Performance(FanSpeed::Auto),
@@ -302,7 +302,7 @@ impl ProgramState {
         )]
         .into_iter()
         .chain((2000..=5000).step_by(500).map(|rpm| {
-            let event_id = format!("fan_speed:{}", rpm);
+            let event_id = format!("perf_fan_speed:{}", rpm);
             event_handlers.insert(
                 event_id.clone(),
                 DeviceState {
@@ -320,7 +320,7 @@ impl ProgramState {
         }))
         .collect();
         event_handlers.insert(
-            "fan_speed:auto".to_string(),
+            "perf_fan_speed:auto".to_string(),
             DeviceState {
                 perf_mode: PerfMode::Performance(FanSpeed::Auto),
                 ..*dstate
@@ -330,7 +330,7 @@ impl ProgramState {
         perf_modes.append(&Submenu::with_items(
             "Performance",
             true,
-            &fan_speeds
+            &perf_fan_speeds
                 .iter()
                 .map(|i| i as &dyn IsMenuItem)
                 .collect::<Vec<_>>(),
@@ -613,15 +613,17 @@ impl ProgramState {
 
     fn icon(&self) -> tray_icon::Icon {
         let razer_red = include_bytes!("../icons/razer-red.png");
+        let razer_blue = include_bytes!("../icons/razer-blue.png");
+        let razer_brown = include_bytes!("../icons/razer-brown.png");
         let razer_yellow = include_bytes!("../icons/razer-yellow.png");
         let razer_green = include_bytes!("../icons/razer-green.png");
 
         let image = match self.device_state.perf_mode {
-            PerfMode::Battery => image::load_from_memory(razer_yellow),
+            PerfMode::Battery => image::load_from_memory(razer_blue),
             PerfMode::Silent => image::load_from_memory(razer_yellow),
             PerfMode::Balanced(_) => image::load_from_memory(razer_green),
             PerfMode::Performance(_) => image::load_from_memory(razer_red),
-            PerfMode::Custom(_, _, _) => image::load_from_memory(razer_red),
+            PerfMode::Custom(_, _, _) => image::load_from_memory(razer_brown),
         };
 
         let (icon_rgba, icon_width, icon_height) = {
