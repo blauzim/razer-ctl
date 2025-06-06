@@ -53,27 +53,44 @@ impl Device {
         let mut response_buf: Vec<u8> = vec![0x00; 1 + std::mem::size_of::<Packet>()];
         //println!("Report {:?}", report);
 
-        thread::sleep(time::Duration::from_micros(1000));
-        self.device
-            .send_feature_report(
-                [0_u8; 1] // report id
-                    .iter()
-                    .copied()
-                    .chain(Into::<Vec<u8>>::into(&report).into_iter())
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            )
-            .context("Failed to send feature report")?;
+        const MAX_RETRIES: usize = 3;
 
-        thread::sleep(time::Duration::from_micros(2000));
-        if response_buf.len() != self.device.get_feature_report(&mut response_buf)? {
-            return Err(anyhow!("Response size != {}", response_buf.len()));
+        for attempt in 0..MAX_RETRIES {
+            thread::sleep(time::Duration::from_micros(1000));
+
+            self.device
+                .send_feature_report(
+                    [0_u8; 1] // report id
+                        .iter()
+                        .copied()
+                        .chain(Into::<Vec<u8>>::into(&report).into_iter())
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                )
+                .context("Failed to send feature report")?;
+
+            thread::sleep(time::Duration::from_micros(2000));
+
+            let response_size = self.device.get_feature_report(&mut response_buf)?;
+            if response_buf.len() != response_size {
+                return Err(anyhow!("Response size != {}", response_buf.len()));
+            }
+
+            // skip report id byte
+            let response = <&[u8] as TryInto<Packet>>::try_into(&response_buf[1..])?;
+            //println!("Response {:?}", response);
+
+            if response.ensure_matches_report(&report).is_ok() {
+                return Ok(response);
+            } else if attempt == MAX_RETRIES - 1 {
+                return Err(anyhow!("Failed to match report after {} attempts", MAX_RETRIES));
+            }
+
+            // Add a small delay before retrying
+            thread::sleep(time::Duration::from_millis(500));
         }
 
-        // skip report id byte
-        let response = <&[u8] as TryInto<Packet>>::try_into(&response_buf[1..])?;
-        //println!("Response {:?}", response);
-        response.ensure_matches_report(&report)
+        Err(anyhow!("Failed to send feature report"))
     }
 
     pub fn enumerate() -> Result<(Vec<u16>, String)> {

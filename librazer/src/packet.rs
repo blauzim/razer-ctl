@@ -54,7 +54,7 @@ impl Packet {
         &self.args
     }
 
-    pub fn ensure_matches_report(self, report: &Packet) -> Result<Self> {
+    pub fn ensure_matches_report(&self, report: &Packet) -> Result<()> {
         ensure!(
             (report.command_class, report.command_id, report.id)
                 == (self.command_class, self.command_id, self.id),
@@ -79,7 +79,7 @@ impl Packet {
             self.status
         );
 
-        Ok(self)
+        Ok(())
     }
 }
 
