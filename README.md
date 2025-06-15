@@ -1,6 +1,6 @@
 # Razer Blade control utility
 
-This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so yuour milage may vary. 
+This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so your milage may vary. 
 
 The supported devices are :
 * Razer Blade 16 2025
