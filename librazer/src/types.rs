@@ -19,9 +19,10 @@ pub enum FanZone {
 pub enum PerfMode {
     Balanced = 0,
     Performance = 2,
-    Silent = 5,
     Custom = 4,
+    Silent = 5,
     Battery = 6,
+    Hyperboost = 7,
 }
 
 #[derive(EnumIter, Clone, Copy, Debug, ValueEnum, PartialEq, Serialize, Deserialize)]
@@ -93,9 +94,10 @@ impl TryFrom<u8> for PerfMode {
         match perf_mode {
             0 => Ok(Self::Balanced),
             2 => Ok(Self::Performance),
-            5 => Ok(Self::Silent),
             4 => Ok(Self::Custom),
+            5 => Ok(Self::Silent),
             6 => Ok(Self::Battery),
+            7 => Ok(Self::Hyperboost),
             _ => bail!("Failed to convert {} to PerformanceMode", perf_mode),
         }
     }
