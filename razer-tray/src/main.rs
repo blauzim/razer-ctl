@@ -355,7 +355,7 @@ impl ProgramState {
 
         // Hyperboost
         let hyper_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "perf_fan_speed:auto",
+            "hyper_fan_speed:auto",
             "Fan: Auto",
             dstate.perf_mode != PerfMode::Hyperboost(FanSpeed::Auto),
             dstate.perf_mode == PerfMode::Hyperboost(FanSpeed::Auto),
@@ -381,7 +381,7 @@ impl ProgramState {
         }))
         .collect();
         event_handlers.insert(
-            "perf_fan_speed:auto".to_string(),
+            "hyper_fan_speed:auto".to_string(),
             DeviceState {
                 perf_mode: PerfMode::Hyperboost(FanSpeed::Auto),
                 ..*dstate
