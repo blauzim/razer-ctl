@@ -1,6 +1,6 @@
 # Razer Blade control utility
 
-This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so yuour milage may vary. 
+This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so your milage may vary. 
 
 The supported devices are :
 * Razer Blade 16 2025
@@ -9,11 +9,19 @@ The supported devices are :
 
 ## What can it control?
 
-* Performance modes (including overclock)
+* Performance modes (including overclock & Hyperboost)
 * Lid logo modes: off, static, breathing
 * Keyboard brightness (works on Windows with Fn keys anyway)
 
 ![](data/demo.gif)
+
+## What is missing vs ghelper?
+
+* Windows power plan control
+* Detecting and disabling / closing apps which use GPU when needed to save power
+* GUI for fan controls
+* Custom power targets for GPU and CPU - can't do as Razer interface doesn't support it.
+* Detecting if power plugged in or not and changing the system settings (razer power settings, windows power plan, stop gpu apps,....)
 
 ## Reverse Engineering
 

@@ -35,6 +35,7 @@ enum PerfMode {
     Silent,
     Balanced(FanSpeed),
     Performance(FanSpeed),
+    Hyperboost(FanSpeed),
     Custom(CpuBoost, GpuBoost, MaxFanSpeedMode),
 }
 
@@ -70,6 +71,13 @@ impl DeviceState {
             (librazer::types::PerfMode::Performance, librazer::types::FanMode::Manual) => {
                 let fan_speed = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
                 PerfMode::Performance(FanSpeed::Manual(fan_speed))
+            }
+            (librazer::types::PerfMode::Hyperboost, librazer::types::FanMode::Auto) => {
+                PerfMode::Hyperboost(FanSpeed::Auto)
+            }
+            (librazer::types::PerfMode::Hyperboost, librazer::types::FanMode::Manual) => {
+                let fan_speed = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
+                PerfMode::Hyperboost(FanSpeed::Manual(fan_speed))
             }
             (librazer::types::PerfMode::Custom, _) => {
                 let cpu_boost = command::get_cpu_boost(device)?;
@@ -111,6 +119,14 @@ impl DeviceState {
             }
             PerfMode::Performance(FanSpeed::Manual(rpm)) => {
                 command::set_perf_mode(device, librazer::types::PerfMode::Performance)?;
+                command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
+                command::set_fan_rpm(device, rpm)
+            }
+            PerfMode::Hyperboost(FanSpeed::Auto) => {
+                command::set_perf_mode(device, librazer::types::PerfMode::Hyperboost)
+            }
+            PerfMode::Hyperboost(FanSpeed::Manual(rpm)) => {
+                command::set_perf_mode(device, librazer::types::PerfMode::Hyperboost)?;
                 command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
                 command::set_fan_rpm(device, rpm)
             }
@@ -337,6 +353,50 @@ impl ProgramState {
         )?)?;
 
 
+        // Hyperboost
+        let hyper_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
+            "hyper_fan_speed:auto",
+            "Fan: Auto",
+            dstate.perf_mode != PerfMode::Hyperboost(FanSpeed::Auto),
+            dstate.perf_mode == PerfMode::Hyperboost(FanSpeed::Auto),
+            None,
+        )]
+        .into_iter()
+        .chain((2000..=5000).step_by(500).map(|rpm| {
+            let event_id = format!("perf_fan_speed:{}", rpm);
+            event_handlers.insert(
+                event_id.clone(),
+                DeviceState {
+                    perf_mode: PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
+                    ..*dstate
+                },
+            );
+            CheckMenuItem::with_id(
+                event_id,
+                format!("Fan: {} RPM", rpm),
+                dstate.perf_mode != PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
+                dstate.perf_mode == PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
+                None,
+            )
+        }))
+        .collect();
+        event_handlers.insert(
+            "hyper_fan_speed:auto".to_string(),
+            DeviceState {
+                perf_mode: PerfMode::Hyperboost(FanSpeed::Auto),
+                ..*dstate
+            },
+        );
+
+        perf_modes.append(&Submenu::with_items(
+            "Hyperboost",
+            true,
+            &hyper_fan_speeds
+                .iter()
+                .map(|i| i as &dyn IsMenuItem)
+                .collect::<Vec<_>>(),
+        )?)?;
+
         // custom
         let cpu_boosts: Vec<CheckMenuItem> = CpuBoost::iter()
             .map(|boost| {
@@ -547,7 +607,8 @@ impl ProgramState {
                 PerfMode::Battery => PerfMode::Silent,
                 PerfMode::Silent => PerfMode::Balanced(FanSpeed::Auto),
                 PerfMode::Balanced(..) => PerfMode::Performance(FanSpeed::Auto),
-                PerfMode::Performance(..) => {
+                PerfMode::Performance(..) => PerfMode::Hyperboost(FanSpeed::Auto),
+                PerfMode::Hyperboost(..) => {
                     PerfMode::Custom(CpuBoost::Boost, GpuBoost::High, MaxFanSpeedMode::Disable)
                 }
                 PerfMode::Custom(..) => PerfMode::Battery,
@@ -574,6 +635,12 @@ impl ProgramState {
                 writeln!(&mut info, "Performance (Auto)")?;
             }
             PerfMode::Performance(FanSpeed::Manual(rpm)) => {
+                writeln!(&mut info, "Performance {}", rpm)?;
+            }
+            PerfMode::Hyperboost(FanSpeed::Auto) => {
+                writeln!(&mut info, "Performance (Auto)")?;
+            }
+            PerfMode::Hyperboost(FanSpeed::Manual(rpm)) => {
                 writeln!(&mut info, "Performance {}", rpm)?;
             }
             PerfMode::Custom(cpu_boost, gpu_boost, max_fan_speed) => {
@@ -617,12 +684,14 @@ impl ProgramState {
         let razer_brown = include_bytes!("../icons/razer-brown.png");
         let razer_yellow = include_bytes!("../icons/razer-yellow.png");
         let razer_green = include_bytes!("../icons/razer-green.png");
+        let razer_violet = include_bytes!("../icons/razer-violet.png");
 
         let image = match self.device_state.perf_mode {
             PerfMode::Battery => image::load_from_memory(razer_blue),
             PerfMode::Silent => image::load_from_memory(razer_yellow),
             PerfMode::Balanced(_) => image::load_from_memory(razer_green),
             PerfMode::Performance(_) => image::load_from_memory(razer_red),
+            PerfMode::Hyperboost(_) => image::load_from_memory(razer_violet),
             PerfMode::Custom(_, _, _) => image::load_from_memory(razer_brown),
         };
 
