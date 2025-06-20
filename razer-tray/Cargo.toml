@@ -1,7 +1,7 @@
 [package]
 name = "razer-tray"
 version = "0.8.0"
-edition = "2024"
+edition = "2021"
 
 authors = ["blauzim <original author Tarek Dakhran>"]
 homepage = "https://github.com/blauzim/razer-ctl"
