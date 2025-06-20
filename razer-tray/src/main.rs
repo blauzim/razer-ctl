@@ -1,9 +1,10 @@
 #![windows_subsystem = "windows"]
-use anyhow::Result;
+
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
+use anyhow::Error;
 
-use librazer::types::{BatteryCare, CpuBoost, GpuBoost, LightsAlwaysOn, LogoMode, MaxFanSpeedMode};
+use librazer::types::{BatteryCare, CpuBoost, GpuBoost, LightsAlwaysOn, LogoMode, FanMode};
 use librazer::{command, device};
 
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
@@ -33,10 +34,10 @@ enum FanSpeed {
 enum PerfMode {
     Battery,
     Silent,
-    Balanced(FanSpeed),
-    Performance(FanSpeed),
-    Hyperboost(FanSpeed),
-    Custom(CpuBoost, GpuBoost, MaxFanSpeedMode),
+    Balanced,
+    Performance,
+    Hyperboost,
+    Custom(CpuBoost, GpuBoost),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -51,42 +52,33 @@ struct DeviceState {
     perf_mode: PerfMode,
     lights_mode: LightsMode,
     battery_care: BatteryCare,
+    fan_speed : FanSpeed,
 }
+
+type Result<T> = std::result::Result<T, Error>;
 
 impl DeviceState {
     fn read(device: &device::Device) -> Result<Self> {
         let perf_mode = match command::get_perf_mode(device)? {
             (librazer::types::PerfMode::Battery, _) => PerfMode::Battery,
             (librazer::types::PerfMode::Silent, _) => PerfMode::Silent,
-            (librazer::types::PerfMode::Balanced, librazer::types::FanMode::Auto) => {
-                PerfMode::Balanced(FanSpeed::Auto)
-            }
-            (librazer::types::PerfMode::Balanced, librazer::types::FanMode::Manual) => {
-                let fan_speed = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
-                PerfMode::Balanced(FanSpeed::Manual(fan_speed))
-            }
-            (librazer::types::PerfMode::Performance, librazer::types::FanMode::Auto) => {
-                PerfMode::Performance(FanSpeed::Auto)
-            }
-            (librazer::types::PerfMode::Performance, librazer::types::FanMode::Manual) => {
-                let fan_speed = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
-                PerfMode::Performance(FanSpeed::Manual(fan_speed))
-            }
-            (librazer::types::PerfMode::Hyperboost, librazer::types::FanMode::Auto) => {
-                PerfMode::Hyperboost(FanSpeed::Auto)
-            }
-            (librazer::types::PerfMode::Hyperboost, librazer::types::FanMode::Manual) => {
-                let fan_speed = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
-                PerfMode::Hyperboost(FanSpeed::Manual(fan_speed))
-            }
+            (librazer::types::PerfMode::Balanced, _) => PerfMode::Balanced,
+            (librazer::types::PerfMode::Performance, _) => PerfMode::Performance,
+            (librazer::types::PerfMode::Hyperboost, _) => PerfMode::Hyperboost,
             (librazer::types::PerfMode::Custom, _) => {
                 let cpu_boost = command::get_cpu_boost(device)?;
                 let gpu_boost = command::get_gpu_boost(device)?;
-                let max_fan_speed = command::get_max_fan_speed_mode(device)?;
-                PerfMode::Custom(cpu_boost, gpu_boost, max_fan_speed)
+                PerfMode::Custom(cpu_boost, gpu_boost)
             }
         };
 
+        let fan_speed = match command::get_perf_mode(device)? {
+            (_,FanMode::Auto) => FanSpeed::Auto,
+            (_,FanMode::Manual) => {
+                let rpm = command::get_fan_rpm(device, librazer::types::FanZone::Zone1)?;
+                FanSpeed::Manual(rpm)
+            }
+        };
         let lights_mode = LightsMode {
             logo_mode: command::get_logo_mode(device)?,
             keyboard_brightness: command::get_keyboard_brightness(device)?,
@@ -96,9 +88,10 @@ impl DeviceState {
         let battery_care = command::get_battery_care(device)?;
 
         Ok(Self {
-            perf_mode,
+            perf_mode,            
             lights_mode,
             battery_care,
+            fan_speed
         })
     }
 
@@ -106,35 +99,21 @@ impl DeviceState {
         match self.perf_mode {
             PerfMode::Battery => command::set_perf_mode(device, librazer::types::PerfMode::Battery),
             PerfMode::Silent => command::set_perf_mode(device, librazer::types::PerfMode::Silent),
-            PerfMode::Balanced(FanSpeed::Auto) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Balanced)
-            }
-            PerfMode::Balanced(FanSpeed::Manual(rpm)) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Balanced)?;
-                command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
-                command::set_fan_rpm(device, rpm)
-            }
-            PerfMode::Performance(FanSpeed::Auto) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Performance)
-            }
-            PerfMode::Performance(FanSpeed::Manual(rpm)) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Performance)?;
-                command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
-                command::set_fan_rpm(device, rpm)
-            }
-            PerfMode::Hyperboost(FanSpeed::Auto) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Hyperboost)
-            }
-            PerfMode::Hyperboost(FanSpeed::Manual(rpm)) => {
-                command::set_perf_mode(device, librazer::types::PerfMode::Hyperboost)?;
-                command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
-                command::set_fan_rpm(device, rpm)
-            }
-            PerfMode::Custom(cpu_boost, gpu_boost, max_fan_speed) => {
+            PerfMode::Balanced => command::set_perf_mode(device, librazer::types::PerfMode::Balanced),
+            PerfMode::Performance => command::set_perf_mode(device, librazer::types::PerfMode::Performance),
+            PerfMode::Hyperboost => command::set_perf_mode(device, librazer::types::PerfMode::Hyperboost),
+            PerfMode::Custom(cpu_boost, gpu_boost) => {
                 command::set_perf_mode(device, librazer::types::PerfMode::Custom)?;
                 command::set_cpu_boost(device, cpu_boost)?;
-                command::set_gpu_boost(device, gpu_boost)?;
-                command::set_max_fan_speed_mode(device, max_fan_speed)
+                command::set_gpu_boost(device, gpu_boost)
+            }
+        }?;
+
+        match self.fan_speed {
+            FanSpeed::Auto => command::set_fan_mode(device, librazer::types::FanMode::Auto),
+            FanSpeed::Manual(rpm) => {
+                command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
+                command::set_fan_rpm(device, rpm)
             }
         }?;
 
@@ -153,20 +132,17 @@ impl DeviceState {
         &self,
         cpu_boost: Option<CpuBoost>,
         gpu_boost: Option<GpuBoost>,
-        max_fan_speed: Option<MaxFanSpeedMode>,
     ) -> Self {
         DeviceState {
-            perf_mode: if let PerfMode::Custom(cb, gb, mfs) = self.perf_mode {
+            perf_mode: if let PerfMode::Custom(cb, gb) = self.perf_mode {
                 PerfMode::Custom(
                     cpu_boost.unwrap_or(cb),
-                    gpu_boost.unwrap_or(gb),
-                    max_fan_speed.unwrap_or(mfs),
+                    gpu_boost.unwrap_or(gb)
                 )
             } else {
                 PerfMode::Custom(
                     cpu_boost.unwrap_or(CpuBoost::Boost),
-                    gpu_boost.unwrap_or(GpuBoost::High),
-                    max_fan_speed.unwrap_or(MaxFanSpeedMode::Disable),
+                    gpu_boost.unwrap_or(GpuBoost::High)
                 )
             },
             ..*self
@@ -177,13 +153,14 @@ impl DeviceState {
 impl Default for DeviceState {
     fn default() -> Self {
         Self {
-            perf_mode: PerfMode::Performance(FanSpeed::Auto),
+            perf_mode: PerfMode::Performance,
             lights_mode: LightsMode {
                 logo_mode: LogoMode::Off,
                 keyboard_brightness: 0,
                 always_on: LightsAlwaysOn::Disable,
             },
             battery_care: BatteryCare::Enable,
+            fan_speed : FanSpeed::Auto,
         }
     }
 }
@@ -194,21 +171,16 @@ trait DeviceStateDelta<T> {
 
 impl DeviceStateDelta<CpuBoost> for DeviceState {
     fn delta(&self, cpu_boost: CpuBoost) -> Self {
-        self.perf_delta(Some(cpu_boost), None, None)
+        self.perf_delta(Some(cpu_boost), None)
     }
 }
 
 impl DeviceStateDelta<GpuBoost> for DeviceState {
     fn delta(&self, gpu_boost: GpuBoost) -> Self {
-        self.perf_delta(None, Some(gpu_boost), None)
+        self.perf_delta(None, Some(gpu_boost))
     }
 }
 
-impl DeviceStateDelta<MaxFanSpeedMode> for DeviceState {
-    fn delta(&self, max_fan_speed_mode: MaxFanSpeedMode) -> Self {
-        self.perf_delta(None, None, Some(max_fan_speed_mode))
-    }
-}
 
 struct ProgramState {
     device_state: DeviceState,
@@ -266,143 +238,57 @@ impl ProgramState {
             },
         );
         // balanced
-        let bal_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "bal_fan_speed:auto",
-            "Fan: Auto",
-            dstate.perf_mode != PerfMode::Balanced(FanSpeed::Auto),
-            dstate.perf_mode == PerfMode::Balanced(FanSpeed::Auto),
-            None,
-        )]
-        .into_iter()
-        .chain((2000..=5000).step_by(500).map(|rpm| {
-            let event_id = format!("bal_fan_speed:{}", rpm);
-            event_handlers.insert(
-                event_id.clone(),
-                DeviceState {
-                    perf_mode: PerfMode::Balanced(FanSpeed::Manual(rpm)),
-                    ..*dstate
-                },
-            );
-            CheckMenuItem::with_id(
-                event_id,
-                format!("Fan: {} RPM", rpm),
-                dstate.perf_mode != PerfMode::Balanced(FanSpeed::Manual(rpm)),
-                dstate.perf_mode == PerfMode::Balanced(FanSpeed::Manual(rpm)),
-                None,
-            )
-        }))
-        .collect();
-        event_handlers.insert(
-            "bal_fan_speed:auto".to_string(),
-            DeviceState {
-                perf_mode: PerfMode::Balanced(FanSpeed::Auto),
-                ..*dstate
-            },
-        );
-
-        perf_modes.append(&Submenu::with_items(
+        perf_modes.append(&CheckMenuItem::with_id(
+            format!("{:?}", PerfMode::Balanced),
             "Balanced",
-            true,
-            &bal_fan_speeds
-                .iter()
-                .map(|i| i as &dyn IsMenuItem)
-                .collect::<Vec<_>>(),
-        )?)?;
-        // Performance
-        let perf_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "perf_fan_speed:auto",
-            "Fan: Auto",
-            dstate.perf_mode != PerfMode::Performance(FanSpeed::Auto),
-            dstate.perf_mode == PerfMode::Performance(FanSpeed::Auto),
+            dstate.perf_mode != PerfMode::Balanced,
+            dstate.perf_mode == PerfMode::Balanced,
             None,
-        )]
-        .into_iter()
-        .chain((2000..=5000).step_by(500).map(|rpm| {
-            let event_id = format!("perf_fan_speed:{}", rpm);
-            event_handlers.insert(
-                event_id.clone(),
-                DeviceState {
-                    perf_mode: PerfMode::Performance(FanSpeed::Manual(rpm)),
-                    ..*dstate
-                },
-            );
-            CheckMenuItem::with_id(
-                event_id,
-                format!("Fan: {} RPM", rpm),
-                dstate.perf_mode != PerfMode::Performance(FanSpeed::Manual(rpm)),
-                dstate.perf_mode == PerfMode::Performance(FanSpeed::Manual(rpm)),
-                None,
-            )
-        }))
-        .collect();
+        ))?;
         event_handlers.insert(
-            "perf_fan_speed:auto".to_string(),
+            format!("{:?}", PerfMode::Balanced),
             DeviceState {
-                perf_mode: PerfMode::Performance(FanSpeed::Auto),
+                perf_mode: PerfMode::Balanced,
                 ..*dstate
             },
         );
-
-        perf_modes.append(&Submenu::with_items(
-            "Performance",
-            true,
-            &perf_fan_speeds
-                .iter()
-                .map(|i| i as &dyn IsMenuItem)
-                .collect::<Vec<_>>(),
-        )?)?;
-
-
+        // performance
+        perf_modes.append(&CheckMenuItem::with_id(
+            format!("{:?}", PerfMode::Performance),
+            "PErformance",
+            dstate.perf_mode != PerfMode::Performance,
+            dstate.perf_mode == PerfMode::Performance,
+            None,
+        ))?;
+        event_handlers.insert(
+            format!("{:?}", PerfMode::Performance),
+            DeviceState {
+                perf_mode: PerfMode::Performance,
+                ..*dstate
+            },
+        );
         // Hyperboost
-        let hyper_fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
-            "hyper_fan_speed:auto",
-            "Fan: Auto",
-            dstate.perf_mode != PerfMode::Hyperboost(FanSpeed::Auto),
-            dstate.perf_mode == PerfMode::Hyperboost(FanSpeed::Auto),
+        perf_modes.append(&CheckMenuItem::with_id(
+            format!("{:?}", PerfMode::Hyperboost),
+            "Hyperboost",
+            dstate.perf_mode != PerfMode::Hyperboost,
+            dstate.perf_mode == PerfMode::Hyperboost,
             None,
-        )]
-        .into_iter()
-        .chain((2000..=5000).step_by(500).map(|rpm| {
-            let event_id = format!("perf_fan_speed:{}", rpm);
-            event_handlers.insert(
-                event_id.clone(),
-                DeviceState {
-                    perf_mode: PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
-                    ..*dstate
-                },
-            );
-            CheckMenuItem::with_id(
-                event_id,
-                format!("Fan: {} RPM", rpm),
-                dstate.perf_mode != PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
-                dstate.perf_mode == PerfMode::Hyperboost(FanSpeed::Manual(rpm)),
-                None,
-            )
-        }))
-        .collect();
+        ))?;
         event_handlers.insert(
-            "hyper_fan_speed:auto".to_string(),
+            format!("{:?}", PerfMode::Hyperboost),
             DeviceState {
-                perf_mode: PerfMode::Hyperboost(FanSpeed::Auto),
+                perf_mode: PerfMode::Hyperboost,
                 ..*dstate
             },
         );
-
-        perf_modes.append(&Submenu::with_items(
-            "Hyperboost",
-            true,
-            &hyper_fan_speeds
-                .iter()
-                .map(|i| i as &dyn IsMenuItem)
-                .collect::<Vec<_>>(),
-        )?)?;
 
         // custom
         let cpu_boosts: Vec<CheckMenuItem> = CpuBoost::iter()
             .map(|boost| {
                 let event_id = format!("cpu_boost:{:?}", boost);
                 event_handlers.insert(event_id.clone(), dstate.delta(boost));
-                let checked = matches!(dstate.perf_mode, PerfMode::Custom(b, _, _) if b == boost);
+                let checked = matches!(dstate.perf_mode, PerfMode::Custom(b, _) if b == boost);
                 CheckMenuItem::with_id(event_id, format!("{:?}", boost), !checked, checked, None)
             })
             .collect();
@@ -411,30 +297,10 @@ impl ProgramState {
             .map(|boost| {
                 let event_id = format!("gpu_boost:{:?}", boost);
                 event_handlers.insert(event_id.clone(), dstate.delta(boost));
-                let checked = matches!(dstate.perf_mode, PerfMode::Custom(_, b, _) if b == boost);
+                let checked = matches!(dstate.perf_mode, PerfMode::Custom(_, b) if b == boost);
                 CheckMenuItem::with_id(event_id, format!("{:?}", boost), !checked, checked, None)
             })
             .collect();
-
-        let max_fan_speed_mode = &[CheckMenuItem::with_id(
-            "max_fan_speed_mode",
-            "Max Fan Speed",
-            true,
-            matches!(
-                dstate.perf_mode,
-                PerfMode::Custom(_, _, MaxFanSpeedMode::Enable)
-            ),
-            None,
-        )];
-        event_handlers.insert(
-            "max_fan_speed_mode".to_string(),
-            match dstate.perf_mode {
-                PerfMode::Custom(_, _, MaxFanSpeedMode::Enable) => {
-                    dstate.delta(MaxFanSpeedMode::Disable)
-                }
-                _ => dstate.delta(MaxFanSpeedMode::Enable),
-            },
-        );
 
         let separator = PredefinedMenuItem::separator();
 
@@ -446,12 +312,55 @@ impl ProgramState {
                 .map(|i| i as &dyn IsMenuItem)
                 .chain([&separator as &dyn IsMenuItem])
                 .chain(gpu_boosts.iter().map(|i| i as &dyn IsMenuItem))
-                .chain([&separator as &dyn IsMenuItem])
-                .chain(max_fan_speed_mode.iter().map(|i| i as &dyn IsMenuItem))
                 .collect::<Vec<_>>(),
         )?)?;
 
         menu.append(&perf_modes)?;
+
+        // Fan Speed
+        menu.append(&PredefinedMenuItem::separator())?;
+        let fan_speeds: Vec<CheckMenuItem> = [CheckMenuItem::with_id(
+            "fan_speeds:auto",
+            "Fan: Auto",
+            dstate.fan_speed != FanSpeed::Auto,
+            dstate.fan_speed == FanSpeed::Auto,
+            None,
+        )]
+        .into_iter()
+        .chain((0..=5500).step_by(500).map(|rpm| {
+            let event_id = format!("fan_speeds:{}", rpm);
+            event_handlers.insert(
+                event_id.clone(),
+                DeviceState {
+                    fan_speed: FanSpeed::Manual(rpm),
+                    ..*dstate
+                },
+            );
+            CheckMenuItem::with_id(
+                event_id,
+                format!("Fan: {} RPM", rpm),
+                dstate.fan_speed != FanSpeed::Manual(rpm),
+                dstate.fan_speed == FanSpeed::Manual(rpm),
+                None,
+            )
+        }))
+        .collect();
+        event_handlers.insert(
+            "fan_speeds:auto".to_string(),
+            DeviceState {
+                fan_speed: FanSpeed::Auto,
+                ..*dstate
+            },
+        );
+
+        menu.append(&Submenu::with_items(
+            "Fan Speed",
+            true,
+            &fan_speeds
+                .iter()
+                .map(|i| i as &dyn IsMenuItem)
+                .collect::<Vec<_>>(),
+        )?)?;
 
         // logo
         menu.append(&PredefinedMenuItem::separator())?;
@@ -605,11 +514,11 @@ impl ProgramState {
         DeviceState {
             perf_mode: match self.device_state.perf_mode {
                 PerfMode::Battery => PerfMode::Silent,
-                PerfMode::Silent => PerfMode::Balanced(FanSpeed::Auto),
-                PerfMode::Balanced(..) => PerfMode::Performance(FanSpeed::Auto),
-                PerfMode::Performance(..) => PerfMode::Hyperboost(FanSpeed::Auto),
-                PerfMode::Hyperboost(..) => {
-                    PerfMode::Custom(CpuBoost::Boost, GpuBoost::High, MaxFanSpeedMode::Disable)
+                PerfMode::Silent => PerfMode::Balanced,
+                PerfMode::Balanced => PerfMode::Performance,
+                PerfMode::Performance => PerfMode::Hyperboost,
+                PerfMode::Hyperboost => {
+                    PerfMode::Custom(CpuBoost::Boost, GpuBoost::High)
                 }
                 PerfMode::Custom(..) => PerfMode::Battery,
             },
@@ -625,32 +534,18 @@ impl ProgramState {
         match self.device_state.perf_mode {
             PerfMode::Battery => writeln!(&mut info, "Battery")?,
             PerfMode::Silent => writeln!(&mut info, "Silent")?,
-            PerfMode::Balanced(FanSpeed::Auto) => {
-                writeln!(&mut info, "Balanced (Auto)")?;
-            }
-            PerfMode::Balanced(FanSpeed::Manual(rpm)) => {
-                writeln!(&mut info, "Balanced {}", rpm)?;
-            }
-            PerfMode::Performance(FanSpeed::Auto) => {
-                writeln!(&mut info, "Performance (Auto)")?;
-            }
-            PerfMode::Performance(FanSpeed::Manual(rpm)) => {
-                writeln!(&mut info, "Performance {}", rpm)?;
-            }
-            PerfMode::Hyperboost(FanSpeed::Auto) => {
-                writeln!(&mut info, "Performance (Auto)")?;
-            }
-            PerfMode::Hyperboost(FanSpeed::Manual(rpm)) => {
-                writeln!(&mut info, "Performance {}", rpm)?;
-            }
-            PerfMode::Custom(cpu_boost, gpu_boost, max_fan_speed) => {
+            PerfMode::Balanced => writeln!(&mut info, "Balanced")?,
+            PerfMode::Performance => writeln!(&mut info, "Performance")?,
+            PerfMode::Hyperboost => writeln!(&mut info, "Hyperboost")?,
+            PerfMode::Custom(cpu_boost, gpu_boost) => {
                 writeln!(&mut info, "Custom",)?;
-                if max_fan_speed == MaxFanSpeedMode::Enable {
-                    status.push('💨');
-                }
                 writeln!(&mut info, "CPU: {:?}", cpu_boost)?;
                 writeln!(&mut info, "GPU: {:?}", gpu_boost)?;
             }
+        }
+        match self.device_state.fan_speed {
+            FanSpeed::Auto => writeln!(&mut info, "Fan Auto")?,
+            FanSpeed::Manual(rpm) => writeln!(&mut info, "Fan {:?} RPM", rpm)?
         }
 
         writeln!(
@@ -689,10 +584,10 @@ impl ProgramState {
         let image = match self.device_state.perf_mode {
             PerfMode::Battery => image::load_from_memory(razer_blue),
             PerfMode::Silent => image::load_from_memory(razer_yellow),
-            PerfMode::Balanced(_) => image::load_from_memory(razer_green),
-            PerfMode::Performance(_) => image::load_from_memory(razer_red),
-            PerfMode::Hyperboost(_) => image::load_from_memory(razer_violet),
-            PerfMode::Custom(_, _, _) => image::load_from_memory(razer_brown),
+            PerfMode::Balanced => image::load_from_memory(razer_green),
+            PerfMode::Performance => image::load_from_memory(razer_red),
+            PerfMode::Hyperboost => image::load_from_memory(razer_violet),
+            PerfMode::Custom(_, _) => image::load_from_memory(razer_brown),
         };
 
         let (icon_rgba, icon_width, icon_height) = {

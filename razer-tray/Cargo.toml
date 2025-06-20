@@ -1,10 +1,10 @@
 [package]
 name = "razer-tray"
-version = "0.6.0"
-edition = "2021"
+version = "0.8.0"
+edition = "2024"
 
-authors = ["Tarek Dakhran <>"]
-homepage = "https://github.com/tdakhran/razer-ctl"
+authors = ["blauzim <original author Tarek Dakhran>"]
+homepage = "https://github.com/blauzim/razer-ctl"
 description = "A tray icon for controlling Razer Blade"
 
 [dependencies]

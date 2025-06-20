@@ -94,12 +94,10 @@ pub fn get_gpu_boost(device: &Device) -> Result<GpuBoost> {
 }
 
 pub fn set_fan_rpm(device: &Device, rpm: u16) -> Result<()> {
-    ensure!((2000..=5000).contains(&rpm));
+    ensure!((0..=5500).contains(&rpm));
     ensure!(
-        get_perf_mode(device)? == (PerfMode::Balanced, FanMode::Manual) || get_perf_mode(device)? == (PerfMode::Performance, FanMode::Manual),
-        "Performance mode must be {:?},{:?} and fan mode must be {:?}",
-        PerfMode::Balanced,
-        PerfMode::Performance,
+        matches!(get_perf_mode(device)?, (_, FanMode::Manual)),
+        "Fan mode must be set to {:?}",
         FanMode::Manual
     );
     [FanZone::Zone1, FanZone::Zone2]
@@ -129,12 +127,6 @@ pub fn get_max_fan_speed_mode(device: &Device) -> Result<MaxFanSpeedMode> {
 }
 
 pub fn set_fan_mode(device: &Device, mode: FanMode) -> Result<()> {
-    ensure!(
-        get_perf_mode(device)?.0 == PerfMode::Balanced || get_perf_mode(device)?.0 == PerfMode::Performance,
-        "Performance mode must be {:?} or {:?}",
-        PerfMode::Balanced,
-        PerfMode::Performance
-    );
     _set_perf_mode(device, get_perf_mode(device)?.0, mode)
 }
 
