@@ -139,16 +139,20 @@ impl Cli for feature::Fan {
             }
             Some(("info", _)) => {
                 match command::get_perf_mode(device) {
-                    Ok((_, fan_mode @ FanMode::Auto)) => println!("Fan: {:?}", fan_mode),
+                    Ok((_, fan_mode @ FanMode::Auto)) => {println!("Fan: {:?}", fan_mode)},
                     Ok((_, fan_mode @ FanMode::Manual)) => {
                         println!(
-                            "Fan: {:?}@{:?} RPM",
+                            "Fan set to: {:?}@{:?} RPM",
                             fan_mode,
                             command::get_fan_rpm(device, FanZone::Zone1)
                         )
                     }
                     Err(e) => println!("{}", e),
-                }
+                };
+                println!(
+                    "Fan actual: {:?} RPM",
+                    command::get_fan_actual_rpm(device, FanZone::Zone1)
+                );
                 Ok(())
             }
             _ => Ok(()),
@@ -194,6 +198,13 @@ impl Cli for feature::Perf {
                         )
                     }
                 }
+                /* Test command code
+                let response = command::send_command(
+                    device,
+                    0x0d88,
+                    &[0, 1, 0]);
+                    println!("Rssponse: {:?}",response); 
+                */
                 Ok(())
             }
             _ => Ok(()),

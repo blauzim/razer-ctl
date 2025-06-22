@@ -255,7 +255,7 @@ impl ProgramState {
         // performance
         perf_modes.append(&CheckMenuItem::with_id(
             format!("{:?}", PerfMode::Performance),
-            "PErformance",
+            "Performance",
             dstate.perf_mode != PerfMode::Performance,
             dstate.perf_mode == PerfMode::Performance,
             None,
