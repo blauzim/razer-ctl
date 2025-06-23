@@ -60,7 +60,7 @@ pub fn get_perf_mode(device: &Device) -> Result<(PerfMode, FanMode)> {
 
     ensure!(
         r1.is_ok() && r2.is_ok(),
-        "Failed to get performance mode and fan mode: {:?} {:?}",
+        "Failed to get performance mode and fan mode: r1 = {:?}, r2 = {:?}",
         r1,
         r2
     );
@@ -69,7 +69,7 @@ pub fn get_perf_mode(device: &Device) -> Result<(PerfMode, FanMode)> {
     let r2 = r2?;
 
     //let r1 = r1?;
-    ensure!(r1 == r2, "Modes do not match: {:?} {:?}", r1, r2);
+    ensure!(r1 == r2, "Modes do not match: r1 = {:?}, r2 = {:?}", r1, r2);
 
     Ok(r1)
 }
