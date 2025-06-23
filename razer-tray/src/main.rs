@@ -22,6 +22,10 @@ use windows::Win32::System::Threading::{
     PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
 };
 
+use windows::Win32::System::Power::{
+    GetSystemPowerStatus, SYSTEM_POWER_STATUS
+};
+
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -45,6 +49,12 @@ struct LightsMode {
     logo_mode: LogoMode,
     keyboard_brightness: u8,
     always_on: LightsAlwaysOn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+struct FanRpm {
+    fan1: u16,
+    fan2: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -186,15 +196,21 @@ struct ProgramState {
     device_state: DeviceState,
     event_handlers: std::collections::HashMap<String, DeviceState>,
     menu: Menu,
+    fan_actual : FanRpm,
+    ac_power : bool
 }
 
 impl ProgramState {
-    fn new(device_state: DeviceState) -> Result<Self> {
+    fn new(device_state: DeviceState, fan_last : FanRpm) -> Result<Self> {
         let (menu, event_handlers) = Self::create_menu_and_handlers(&device_state)?;
+        let fan_actual = fan_last.clone();
+        let ac_power = true;
         Ok(Self {
             device_state,
             event_handlers,
             menu,
+            fan_actual,
+            ac_power
         })
     }
 
@@ -547,6 +563,13 @@ impl ProgramState {
             FanSpeed::Auto => writeln!(&mut info, "Fan Auto")?,
             FanSpeed::Manual(rpm) => writeln!(&mut info, "Fan {:?} RPM", rpm)?
         }
+        
+        writeln!(
+            &mut info,
+            "Fan actual : {:?}, {:?} PRM",
+            self.fan_actual.fan1,
+            self.fan_actual.fan2,
+        )?;
 
         writeln!(
             &mut info,
@@ -598,23 +621,56 @@ impl ProgramState {
         };
         tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
     }
+
+    fn update(
+        &mut self,
+        tray_icon: &mut tray_icon::TrayIcon,
+        new_device_state: DeviceState,
+        device: &device::Device
+    ) -> Result<()> {
+        self.device_state = new_device_state.clone();
+        self.device_state.apply(device)?;
+        (self.menu, self.event_handlers) = Self::create_menu_and_handlers(&self.device_state)?;
+        self.fan_actual = get_fan_rpm(device)?;
+        confy::store(PKG_NAME, None, self.device_state)?;
+        tray_icon.set_icon(Some(self.icon()))?;
+        tray_icon.set_tooltip(Some(self.tooltip()?))?;
+        tray_icon.set_menu(Some(Box::new(self.menu.clone())));
+
+        log::info!("state updated to {:?}", new_device_state);
+        Ok(())
+    }
+
 }
 
-fn update(
-    tray_icon: &mut tray_icon::TrayIcon,
-    new_device_state: DeviceState,
-    device: &device::Device,
-) -> Result<ProgramState> {
-    let new_program_state = ProgramState::new(new_device_state)?;
-    tray_icon.set_icon(Some(new_program_state.icon()))?;
-    tray_icon.set_tooltip(Some(new_program_state.tooltip()?))?;
-    tray_icon.set_menu(Some(Box::new(new_program_state.menu.clone())));
-    new_device_state.apply(device)?;
 
-    confy::store(PKG_NAME, None, new_device_state)?;
 
-    log::info!("state updated to {:?}", new_device_state);
-    Ok(new_program_state)
+fn get_power_state() -> Result<bool> {
+    let mut ac_power : bool = true;
+    unsafe {
+        let mut status = SYSTEM_POWER_STATUS::default();
+        match GetSystemPowerStatus(&mut status) {
+            Ok(()) => {
+                match status.ACLineStatus {
+                    0 => ac_power = false,
+                    _ => ac_power = true
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to get power status: {:?}", e);
+            }
+        }
+    }
+    Ok(ac_power)
+}
+
+fn get_fan_rpm(device: &device::Device) -> Result<FanRpm> {
+    let fan_actual = FanRpm {
+        fan1 : command::get_fan_actual_rpm(device, librazer::types::FanZone::Zone1)?,
+        fan2 : command::get_fan_actual_rpm(device, librazer::types::FanZone::Zone2)?,
+    };
+    //log::info!("fans updated to {:?}", fan_actual);
+    Ok(fan_actual)
 }
 
 fn get_logging_file_path() -> std::path::PathBuf {
@@ -654,9 +710,10 @@ fn init(tray_icon: &mut tray_icon::TrayIcon, device: &device::Device) -> Result<
         confy::get_configuration_file_path(PKG_NAME, None)?.display()
     );
     let config = confy::load(PKG_NAME, None).unwrap_or_default();
-    let state = ProgramState::new(config)?;
-
-    update(tray_icon, state.device_state, device)
+    let fan_actual = get_fan_rpm(device)?;
+    let mut state = ProgramState::new(config, fan_actual)?;
+    state.update(tray_icon, state.device_state, device)?;
+    Ok(state)
 }
 
 #[cfg(target_os = "windows")]
@@ -708,7 +765,8 @@ fn main() -> Result<()> {
 
     let mut tray_icon = TrayIconBuilder::new().build()?;
 
-    let mut state = init(&mut tray_icon, &device)?;
+    let mut state: ProgramState = init(&mut tray_icon, &device)?;
+    let mut last_device_state = state.device_state.clone();
 
     let menu_channel = MenuEvent::receiver();
     let tray_channel = TrayIconEvent::receiver();
@@ -722,21 +780,41 @@ fn main() -> Result<()> {
 
         if let Err(e) = (|| -> Result<()> {
             if let Ok(event) = menu_channel.try_recv() {
-                state = update(&mut tray_icon, state.handle_event(event.id.as_ref())?, &device)?;
+                let new_device_state = state.handle_event(event.id.as_ref())?;
+                log::info!("new_device_state 1 {:?}", new_device_state);
+                state.update(&mut tray_icon, new_device_state, &device)?;
             }
 
             if matches!(tray_channel.try_recv(), Ok(event) if event.click_type == tray_icon::ClickType::Left) {
-                state = update(&mut tray_icon, state.get_next_perf_mode(), &device)?;
+                let new_device_state = state.get_next_perf_mode();
+                log::info!("new_device_state 2 {:?}", new_device_state);
+                state.update(&mut tray_icon, new_device_state, &device)?;
             }
+
+            let ac_power = get_power_state()?;
+            if ac_power != state.ac_power {
+                let mut new_device_state = state.device_state.clone();
+                if ac_power == false {
+                    last_device_state = state.device_state.clone();
+                    new_device_state.perf_mode = PerfMode::Battery;
+                } 
+                if ac_power == true {
+                    new_device_state.perf_mode = last_device_state.perf_mode.clone();
+                }
+                state.ac_power = ac_power;
+                log::info!("new_device_state 3 {:?}", new_device_state);
+                state.update(&mut tray_icon, new_device_state, &device)?;
+            }
+
 
             if now > last_device_state_check_timestamp + std::time::Duration::from_secs(20)
             {
                 last_device_state_check_timestamp = now;
+                state.fan_actual =  get_fan_rpm(&device)?;
                 let active_device_state = DeviceState::read(&device)?;
                 if active_device_state != state.device_state {
                     log::warn!("overriding externally modified state {:?},",
                               active_device_state);
-                    state = update(&mut tray_icon, state.device_state, &device)?;
                 }
             }
 
