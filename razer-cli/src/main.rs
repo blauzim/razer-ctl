@@ -189,7 +189,7 @@ impl Cli for feature::Perf {
                     println!("CPU: {:?}", cpu_boost);
                     println!("GPU: {:?}", gpu_boost);
 
-                    if let (Ok(CpuBoost::Boost) | Ok(CpuBoost::Overclock), Ok(GpuBoost::High)) =
+                    if let (Ok(CpuBoost::Boost) | Ok(CpuBoost::Underclock), Ok(GpuBoost::High)) =
                         (cpu_boost, gpu_boost)
                     {
                         println!(
