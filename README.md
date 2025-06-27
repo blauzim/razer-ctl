@@ -17,11 +17,11 @@ The supported devices are :
 
 ## What is missing vs ghelper?
 
+* Power settings seem to have no effect when AC power unplugged and on battery.
 * Windows power plan control
 * Detecting and disabling / closing apps which use GPU when needed to save power
 * GUI for fan controls
 * Custom power targets for GPU and CPU - can't do as Razer interface doesn't support it.
-* Detecting if power plugged in or not and changing the system settings (razer power settings, windows power plan, stop gpu apps,....)
 
 ## Reverse Engineering
 

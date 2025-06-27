@@ -53,7 +53,7 @@ impl Device {
         let mut response_buf: Vec<u8> = vec![0x00; 1 + std::mem::size_of::<Packet>()];
         //println!("Report {:?}", report);
 
-        const MAX_RETRIES: usize = 3;
+        const MAX_RETRIES: usize = 5;
 
         for attempt in 0..MAX_RETRIES {
             thread::sleep(time::Duration::from_micros(1000));

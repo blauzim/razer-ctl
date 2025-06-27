@@ -1,7 +1,0 @@
-RZ09-05289 
-PID 02c6
-
-
-_ws.col.protocol == "USBHID" && usb.src=="host"
-
-(_ws.col.protocol == "USBHID" ) && (_ws.col.info == "SET_REPORT Request")

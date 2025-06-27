@@ -14,9 +14,6 @@ fn _send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
 }
 
 fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Result<()> {
-    if (fan_mode == FanMode::Manual) && !(perf_mode == PerfMode::Balanced || perf_mode == PerfMode::Performance) {
-        bail!("{:?} allowed only in {:?} or {:?}", fan_mode, PerfMode::Balanced, PerfMode::Performance);
-    }
 
     [1, 2].into_iter().try_for_each(|zone| {
         _send_command(
@@ -31,7 +28,7 @@ fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Re
 fn _set_boost(device: &Device, cluster: Cluster, boost: u8) -> Result<()> {
     let args = &[0, cluster as u8, boost];
     ensure!(
-        get_perf_mode(device)? == (PerfMode::Custom, FanMode::Auto),
+        get_perf_mode(device)?.0 == PerfMode::Custom,
         "Performance mode must be {:?}",
         PerfMode::Custom
     );
@@ -63,7 +60,7 @@ pub fn get_perf_mode(device: &Device) -> Result<(PerfMode, FanMode)> {
 
     ensure!(
         r1.is_ok() && r2.is_ok(),
-        "Failed to get performance mode and fan mode: {:?} {:?}",
+        "Failed to get performance mode and fan mode: r1 = {:?}, r2 = {:?}",
         r1,
         r2
     );
@@ -72,7 +69,7 @@ pub fn get_perf_mode(device: &Device) -> Result<(PerfMode, FanMode)> {
     let r2 = r2?;
 
     //let r1 = r1?;
-    ensure!(r1 == r2, "Modes do not match: {:?} {:?}", r1, r2);
+    ensure!(r1 == r2, "Modes do not match: r1 = {:?}, r2 = {:?}", r1, r2);
 
     Ok(r1)
 }
@@ -94,12 +91,10 @@ pub fn get_gpu_boost(device: &Device) -> Result<GpuBoost> {
 }
 
 pub fn set_fan_rpm(device: &Device, rpm: u16) -> Result<()> {
-    ensure!((2000..=5000).contains(&rpm));
+    ensure!((0..=5500).contains(&rpm));
     ensure!(
-        get_perf_mode(device)? == (PerfMode::Balanced, FanMode::Manual) || get_perf_mode(device)? == (PerfMode::Performance, FanMode::Manual),
-        "Performance mode must be {:?},{:?} and fan mode must be {:?}",
-        PerfMode::Balanced,
-        PerfMode::Performance,
+        matches!(get_perf_mode(device)?, (_, FanMode::Manual)),
+        "Fan mode must be set to {:?}",
         FanMode::Manual
     );
     [FanZone::Zone1, FanZone::Zone2]
@@ -115,6 +110,19 @@ pub fn get_fan_rpm(device: &Device, fan_zone: FanZone) -> Result<u16> {
     Ok(response.get_args()[2] as u16 * 100)
 }
 
+pub fn get_fan_actual_rpm(device: &Device, fan_zone: FanZone) -> Result<u16> {
+    let response = device.send(Packet::new(0x0d88, &[0, fan_zone as u8, 0]))?;
+    ensure!(response.get_args()[1] == fan_zone as u8);
+    Ok(response.get_args()[2] as u16 * 100)
+}
+
+
+pub fn send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
+    let response = device.send(Packet::new(command, args))?;
+    Ok(response)
+}
+
+
 pub fn set_max_fan_speed_mode(device: &Device, mode: MaxFanSpeedMode) -> Result<()> {
     ensure!(
         get_perf_mode(device)?.0 == PerfMode::Custom,
@@ -129,12 +137,6 @@ pub fn get_max_fan_speed_mode(device: &Device) -> Result<MaxFanSpeedMode> {
 }
 
 pub fn set_fan_mode(device: &Device, mode: FanMode) -> Result<()> {
-    ensure!(
-        get_perf_mode(device)?.0 == PerfMode::Balanced || get_perf_mode(device)?.0 == PerfMode::Performance,
-        "Performance mode must be {:?} or {:?}",
-        PerfMode::Balanced,
-        PerfMode::Performance
-    );
     _set_perf_mode(device, get_perf_mode(device)?.0, mode)
 }
 

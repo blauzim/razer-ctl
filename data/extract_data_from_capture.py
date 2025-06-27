@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
 
-raw_data = pd.read_csv('data/wireshark_dump_raw.csv', sep=',')
-annotations = pd.read_csv('data/annotations.csv', sep=' ', header=None)
+# Wireshark filter for the Razer commands
+# (_ws.col.protocol == "USBHID" ) && (_ws.col.info == "SET_REPORT Request") && usb.data_len > 20
+
+raw_data = pd.read_csv('data/test.csv', sep=',')
+annotations = pd.read_csv('data/annotations2.csv', sep=' ', header=None)
 
 table = [['action', 'cmd', 'argc', 'arg0', 'arg1', 'arg2', 'arg3']]
 
@@ -28,3 +31,5 @@ for (index, annotation) in annotations.iterrows():
         row = ['']
 
 print(pd.DataFrame(table))
+
+pd.DataFrame(table).to_clipboard()
