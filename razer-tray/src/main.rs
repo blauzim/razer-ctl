@@ -191,9 +191,29 @@ impl DeviceStateDelta<GpuBoost> for DeviceState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+struct ConfigState {
+    ac_state: DeviceState,
+    battery_state: DeviceState,
+}
+
+impl Default for ConfigState {
+    fn default() -> Self {
+        Self {
+            ac_state: DeviceState {..Default::default()},
+            battery_state : DeviceState {
+                    perf_mode : PerfMode::Battery,
+                    ..Default::default()
+                },
+        }
+    }
+}
+
 
 struct ProgramState {
     device_state: DeviceState,
+    ac_state: DeviceState,
+    battery_state: DeviceState,
     event_handlers: std::collections::HashMap<String, DeviceState>,
     menu: Menu,
     fan_actual : FanRpm,
@@ -205,8 +225,12 @@ impl ProgramState {
         let (menu, event_handlers) = Self::create_menu_and_handlers(&device_state)?;
         let fan_actual = fan_last.clone();
         let ac_power = true;
+        let ac_state = device_state.clone();
+        let battery_state = device_state.clone();
         Ok(Self {
             device_state,
+            ac_state,
+            battery_state,
             event_handlers,
             menu,
             fan_actual,
@@ -632,7 +656,12 @@ impl ProgramState {
         self.device_state.apply(device)?;
         (self.menu, self.event_handlers) = Self::create_menu_and_handlers(&self.device_state)?;
         self.fan_actual = get_fan_rpm(device)?;
-        confy::store(PKG_NAME, None, self.device_state)?;
+        if self.ac_power {
+            self.ac_state = self.device_state.clone()
+        } else {
+            self.battery_state = self.device_state.clone()
+        }
+        confy::store(PKG_NAME, None, &ConfigState {ac_state : self.ac_state,battery_state :  self.battery_state})?;
         tray_icon.set_icon(Some(self.icon()))?;
         tray_icon.set_tooltip(Some(self.tooltip()?))?;
         tray_icon.set_menu(Some(Box::new(self.menu.clone())));
@@ -709,9 +738,15 @@ fn init(tray_icon: &mut tray_icon::TrayIcon, device: &device::Device) -> Result<
         "loading config file {}",
         confy::get_configuration_file_path(PKG_NAME, None)?.display()
     );
-    let config = confy::load(PKG_NAME, None).unwrap_or_default();
+    let config: ConfigState = confy::load(PKG_NAME, None).unwrap_or_default();
     let fan_actual = get_fan_rpm(device)?;
-    let mut state = ProgramState::new(config, fan_actual)?;
+    let mut state = ProgramState::new(config.ac_state, fan_actual)?;
+    state.ac_power = get_power_state()?;
+    state.ac_state = config.ac_state.clone();
+    state.battery_state = config.battery_state.clone();
+    if state.ac_power == false {
+        state.device_state = state.battery_state.clone()
+    }
     state.update(tray_icon, state.device_state, device)?;
     Ok(state)
 }
@@ -766,7 +801,6 @@ fn main() -> Result<()> {
     let mut tray_icon = TrayIconBuilder::new().build()?;
 
     let mut state: ProgramState = init(&mut tray_icon, &device)?;
-    let mut last_device_state = state.device_state.clone();
 
     let menu_channel = MenuEvent::receiver();
     let tray_channel = TrayIconEvent::receiver();
@@ -791,17 +825,13 @@ fn main() -> Result<()> {
                 state.update(&mut tray_icon, new_device_state, &device)?;
             }
 
-            let ac_power = get_power_state()?;
-            if ac_power != state.ac_power {
-                let mut new_device_state = state.device_state.clone();
-                if ac_power == false {
-                    last_device_state = state.device_state.clone();
-                    new_device_state.perf_mode = PerfMode::Battery;
-                } 
-                if ac_power == true {
-                    new_device_state.perf_mode = last_device_state.perf_mode.clone();
-                }
-                state.ac_power = ac_power;
+            state.ac_power = get_power_state()?;
+            if state.ac_power && state.device_state != state.ac_state {
+                let new_device_state = state.ac_state.clone();
+                log::info!("new_device_state 3 {:?}", new_device_state);
+                state.update(&mut tray_icon, new_device_state, &device)?;
+            } else if state.ac_power == false && state.device_state != state.battery_state {
+                let new_device_state = state.battery_state.clone();
                 log::info!("new_device_state 3 {:?}", new_device_state);
                 state.update(&mut tray_icon, new_device_state, &device)?;
             }
