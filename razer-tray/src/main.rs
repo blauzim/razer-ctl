@@ -808,6 +808,11 @@ fn main() -> Result<()> {
 
     let mut last_device_state_check_timestamp = std::time::Instant::now();
 
+    // loop through the default start up sequence to initialise the device.
+    for element in device.info().init_cmds {
+        command::send_command(&device, *element, &[0,0,0,0])?;
+    }
+
     event_loop.run(move |_, _, control_flow| {
         let now = std::time::Instant::now();
         *control_flow = ControlFlow::WaitUntil(now + std::time::Duration::from_millis(1000));

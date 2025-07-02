@@ -4,3 +4,7 @@ data/annotations1.csv
 data/wireshark_dump_raw1.csv
 data/annotations2.csv
 data/test.csv
+data/razer_commands.csv
+data/wireshark_dump_raw_battery_then_power.csv
+data/wireshark_dump_raw_startup.csv
+data/wireshark_dump_raw_startup2.csv
