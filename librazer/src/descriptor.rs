@@ -7,6 +7,7 @@ pub struct Descriptor {
     pub name: &'static str,
     pub pid: u16,
     pub features: &'static [&'static str],
+    pub init_cmds: &'static [u16],
 }
 
 pub const SUPPORTED: &[Descriptor] = &[
@@ -22,6 +23,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
+        init_cmds : &[],
     },
     Descriptor {
         model_number_prefix: "RZ09-0482X",
@@ -34,6 +36,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
+        init_cmds : &[],
     },
     Descriptor {
         model_number_prefix: "RZ09-05289",
@@ -47,6 +50,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
+        init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
     },
     Descriptor {
         model_number_prefix: "RZ09-05288",

@@ -309,6 +309,7 @@ fn main() -> Result<()> {
                 name: "Unknown",
                 pid: *submatches.get_one::<u16>("pid").unwrap(),
                 features: feature::ALL_FEATURES,
+                init_cmds : &[]
             })?;
             handle(&device, submatches, &cli_features)?;
         }
