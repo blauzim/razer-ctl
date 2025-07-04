@@ -9,9 +9,15 @@ use librazer::{command, device};
 
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tray_icon::{
-    menu::{CheckMenuItem, IsMenuItem, Menu, MenuEvent, PredefinedMenuItem, Submenu},
-    TrayIconBuilder, TrayIconEvent,
+    menu::{CheckMenuItem, IsMenuItem, Menu, MenuEvent, PredefinedMenuItem, MenuItem, Submenu, MenuId},
+    TrayIconBuilder, TrayIconEvent, 
 };
+
+use std::process::Command as procCommand;
+use std::os::windows::process::CommandExt;
+use sysinfo::{ProcessExt, Signal, System, SystemExt};
+
+use single_instance::SingleInstance;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HANDLE;
@@ -514,6 +520,10 @@ impl ProgramState {
             },
         );
 
+        // gpu task killer
+        menu.append(&PredefinedMenuItem::separator())?;
+        let terminate_item = MenuItem::with_id("dgpu_terminate_proc","Terminate dGPU processes", true, None);
+        menu.append(&terminate_item)?;
         // footer
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&PredefinedMenuItem::about(None, Some(Self::about())))?;
@@ -702,6 +712,52 @@ fn get_fan_rpm(device: &device::Device) -> Result<FanRpm> {
     Ok(fan_actual)
 }
 
+fn gpu_taskkill() -> Result<()> {
+    // Run nvidia-smi to get PIDs of GPU processes
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let output = procCommand::new("nvidia-smi")
+        .args(&["--query-compute-apps=pid", "--format=csv,noheader"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .expect("Failed to execute nvidia-smi");
+
+    if !output.status.success() {
+        log::info!("nvidia-smi command failed or no GPU processes found");
+        return Ok(());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let pids: Vec<u32> = stdout
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .collect();
+
+    if pids.is_empty() {
+        log::info!("No GPU-using processes found.");
+        return Ok(());
+    }
+
+    log::info!("GPU-using PIDs found: {:?}", pids);
+
+    let mut sys = System::new_all();
+    sys.refresh_processes();
+
+    for pid in pids {
+        if let Some(process) = sys.process(sysinfo::Pid::from(pid as usize)) {
+            log::info!("Killing process {} ({})", pid, process.name());
+            // Send SIGKILL to the process
+            if process.kill_with(Signal::Kill).unwrap_or(false) {
+                log::info!("Successfully killed PID {}", pid);
+            } else {
+                log::info!("Failed to kill PID {}", pid);
+            }
+        } else {
+            log::info!("Process with PID {} not found", pid);
+        }
+    }
+    Ok(())
+}
+
 fn get_logging_file_path() -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}.log", PKG_NAME))
 }
@@ -776,6 +832,13 @@ fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     efficiency_mode();
 
+    // Create a named mutex (unique string for your app)
+    let instance = SingleInstance::new("razer-tray").unwrap();
+    if !instance.is_single() {
+        println!("Another instance is already running. Exiting.");
+        return Ok(());
+    }
+
     init_logging_to_file()?;
     log::info!("{0} starting {1} {0}", "==".repeat(20), PKG_NAME);
 
@@ -819,9 +882,15 @@ fn main() -> Result<()> {
 
         if let Err(e) = (|| -> Result<()> {
             if let Ok(event) = menu_channel.try_recv() {
-                let new_device_state = state.handle_event(event.id.as_ref())?;
-                log::info!("new_device_state 1 {:?}", new_device_state);
-                state.update(&mut tray_icon, new_device_state, &device)?;
+                log::info!("Menu Event {:?}", event.id);
+                if event.id == MenuId("dgpu_terminate_proc".to_string()) {
+                    log::info!("match event id");
+                    gpu_taskkill()?;
+                } else {
+                    let new_device_state = state.handle_event(event.id.as_ref())?;
+                    log::info!("new_device_state 1 {:?}", new_device_state);
+                    state.update(&mut tray_icon, new_device_state, &device)?;
+                }
             }
 
             if matches!(tray_channel.try_recv(), Ok(event) if event.click_type == tray_icon::ClickType::Left) {

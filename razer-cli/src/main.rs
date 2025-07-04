@@ -10,6 +10,8 @@ use librazer::feature::Feature;
 
 use anyhow::Result;
 use clap::{arg, Command};
+use std::process::Command as procCommand;
+use sysinfo::{ProcessExt, Signal, System, SystemExt};
 
 trait Cli: feature::Feature {
     fn cmd(&self) -> Option<Command> {
@@ -226,6 +228,50 @@ fn enumerate() -> Result<()> {
     Ok(())
 }
 
+fn taskkill() -> Result<()> {
+    // Run nvidia-smi to get PIDs of GPU processes
+    let output = procCommand::new("nvidia-smi")
+        .args(&["--query-compute-apps=pid", "--format=csv,noheader"])
+        .output()
+        .expect("Failed to execute nvidia-smi");
+
+    if !output.status.success() {
+        eprintln!("nvidia-smi command failed or no GPU processes found");
+        return Ok(());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let pids: Vec<u32> = stdout
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .collect();
+
+    if pids.is_empty() {
+        println!("No GPU-using processes found.");
+        return Ok(());
+    }
+
+    println!("GPU-using PIDs found: {:?}", pids);
+
+    let mut sys = System::new_all();
+    sys.refresh_processes();
+
+    for pid in pids {
+        if let Some(process) = sys.process(sysinfo::Pid::from(pid as usize)) {
+            println!("Killing process {} ({})", pid, process.name());
+            // Send SIGKILL to the process
+            if process.kill_with(Signal::Kill).unwrap_or(false) {
+                println!("Successfully killed PID {}", pid);
+            } else {
+                eprintln!("Failed to kill PID {}", pid);
+            }
+        } else {
+            eprintln!("Process with PID {} not found", pid);
+        }
+    }
+    Ok(())
+}
+
 fn update_cmd(cmd: Command, features: &[Box<dyn Cli>]) -> Command {
     features
         .iter()
@@ -292,13 +338,17 @@ fn main() -> Result<()> {
         .subcommand_required(true)
         .subcommand(update_cmd(auto_cmd, &cli_features))
         .subcommand(update_cmd(manual_cmd, &cli_features))
-        .subcommand(clap::Command::new("enumerate").about("List discovered Razer devices"));
+        .subcommand(clap::Command::new("enumerate").about("List discovered Razer devices"))
+        .subcommand(clap::Command::new("taskkill").about("Terminate all processes using dGPU"));
 
     let matches = cmd.get_matches();
 
     match matches.subcommand() {
         Some(("enumerate", _)) => {
             enumerate()?;
+        }
+        Some(("taskkill", _)) => {
+            taskkill()?;
         }
         Some(("auto", submatches)) => {
             handle(&device.unwrap(), submatches, &cli_features)?;
