@@ -40,7 +40,7 @@ pub const SUPPORTED: &[Descriptor] = &[
     },
     Descriptor {
         model_number_prefix: "RZ09-05289",
-        name: "Razer Blade 16” (2025) Black",
+        name: "Razer Blade 16” (2025) 5090",
         pid: 0x02c6,
         features: &[
             "battery-care",
@@ -64,6 +64,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
+        init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
     }
 ];
 

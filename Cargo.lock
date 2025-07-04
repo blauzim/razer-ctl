@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "librazer"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "razer-cli"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1782,7 +1782,7 @@ dependencies = [
 
 [[package]]
 name = "razer-tray"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "confy",
