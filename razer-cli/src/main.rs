@@ -43,6 +43,17 @@ macro_rules! impl_unary_handle_cli {
     };
 }
 
+macro_rules! impl_unary_handle_with_arg_cli {
+    (<$arg_type:ty>($matches:ident, $device:ident, $name:literal, $arg_name:literal, $arg2:literal, $setter:path)) => {
+        match $matches.subcommand() {
+            Some(($name, matches)) => {
+                $setter($device, *matches.get_one::<$arg_type>($arg_name).unwrap(), $arg2)?
+            }
+            _ => (),
+        }
+    };
+}
+
 macro_rules! impl_unary_cli {
     (<$feature_type:ty><$arg_type:ty>($desc:literal,$arg_desc:literal,$setter:path,$getter:path)) => {
         impl Cli for $feature_type {
@@ -130,7 +141,7 @@ impl Cli for feature::Fan {
     fn handle(&self, device: &device::Device, matches: &clap::ArgMatches) -> Result<()> {
         match matches.subcommand() {
             Some((ident, matches)) if ident == self.name() => {
-                impl_unary_handle_cli! {<u16>(matches, device, "rpm", "RPM", command::set_fan_rpm)}
+                impl_unary_handle_with_arg_cli! {<u16>(matches, device, "rpm", "RPM", false, command::set_fan_rpm)}
                 impl_unary_handle_cli! {<MaxFanSpeedMode>(matches, device, "max", "MAX", command::set_max_fan_speed_mode)}
 
                 match matches.subcommand() {
@@ -191,7 +202,7 @@ impl Cli for feature::Perf {
                     println!("CPU: {:?}", cpu_boost);
                     println!("GPU: {:?}", gpu_boost);
 
-                    if let (Ok(CpuBoost::Boost) | Ok(CpuBoost::Underclock), Ok(GpuBoost::High)) =
+                    if let (Ok(CpuBoost::Boost) | Ok(CpuBoost::Undervolt), Ok(GpuBoost::High)) =
                         (cpu_boost, gpu_boost)
                     {
                         println!(

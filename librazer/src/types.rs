@@ -39,11 +39,11 @@ pub enum FanMode {
 
 #[derive(EnumIter, Clone, Copy, Debug, ValueEnum, PartialEq, Serialize, Deserialize)]
 pub enum CpuBoost {
-    Underclock = 4,
     Low = 0,
     Medium = 1,
     High = 2,
     Boost = 3,
+    Undervolt = 4,
 }
 
 #[derive(EnumIter, Clone, Copy, Debug, ValueEnum, PartialEq, Serialize, Deserialize)]
@@ -120,11 +120,11 @@ impl TryFrom<u8> for CpuBoost {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            4 => Ok(Self::Underclock),
             0 => Ok(Self::Low),
             1 => Ok(Self::Medium),
             2 => Ok(Self::High),
             3 => Ok(Self::Boost),
+            4 => Ok(Self::Undervolt),
             _ => bail!("Failed to convert {} to CpuBoost", value),
         }
     }

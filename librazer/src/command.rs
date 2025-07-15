@@ -26,7 +26,7 @@ fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Re
 }
 
 fn _set_boost(device: &Device, cluster: Cluster, boost: u8) -> Result<()> {
-    let args = &[0, cluster as u8, boost];
+    let args = &[0x01, cluster as u8, boost];
     ensure!(
         get_perf_mode(device)?.0 == PerfMode::Custom,
         "Performance mode must be {:?}",
@@ -90,13 +90,15 @@ pub fn get_gpu_boost(device: &Device) -> Result<GpuBoost> {
     GpuBoost::try_from(_get_boost(device, Cluster::Gpu)?)
 }
 
-pub fn set_fan_rpm(device: &Device, rpm: u16) -> Result<()> {
+pub fn set_fan_rpm(device: &Device, rpm: u16, check_mode: bool) -> Result<()> {
     ensure!((0..=5500).contains(&rpm));
-    ensure!(
-        matches!(get_perf_mode(device)?, (_, FanMode::Manual)),
-        "Fan mode must be set to {:?}",
-        FanMode::Manual
-    );
+    if check_mode {
+        ensure!(
+            matches!(get_perf_mode(device)?, (_, FanMode::Manual)),
+            "Fan mode must be set to {:?}",
+            FanMode::Manual
+        );
+    }
     [FanZone::Zone1, FanZone::Zone2]
         .into_iter()
         .try_for_each(|zone| {

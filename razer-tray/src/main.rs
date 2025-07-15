@@ -15,7 +15,7 @@ use tray_icon::{
 
 use std::process::Command as procCommand;
 use std::os::windows::process::CommandExt;
-use sysinfo::{ProcessExt, Signal, System, SystemExt};
+use sysinfo::{ProcessExt, Signal, System, SystemExt, Pid};
 
 use single_instance::SingleInstance;
 
@@ -129,7 +129,7 @@ impl DeviceState {
             FanSpeed::Auto => command::set_fan_mode(device, librazer::types::FanMode::Auto),
             FanSpeed::Manual(rpm) => {
                 command::set_fan_mode(device, librazer::types::FanMode::Manual)?;
-                command::set_fan_rpm(device, rpm)
+                command::set_fan_rpm(device, rpm, false)
             }
         }?;
 
@@ -713,10 +713,11 @@ fn get_fan_rpm(device: &device::Device) -> Result<FanRpm> {
 }
 
 fn gpu_taskkill() -> Result<()> {
-    // Run nvidia-smi to get PIDs of GPU processes
+    let whitelist: &[&str] = &["explorer.exe", "Insufficient Permissions"];
+
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     let output = procCommand::new("nvidia-smi")
-        .args(&["--query-compute-apps=pid", "--format=csv,noheader"])
+        .args(&["--query-compute-apps=name,pid", "--format=csv,noheader"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .expect("Failed to execute nvidia-smi");
@@ -727,25 +728,40 @@ fn gpu_taskkill() -> Result<()> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let pids: Vec<u32> = stdout
-        .lines()
-        .filter_map(|line| line.trim().parse::<u32>().ok())
-        .collect();
+    let lines = stdout.lines();
 
-    if pids.is_empty() {
-        log::info!("No GPU-using processes found.");
-        return Ok(());
+    let mut pids_to_kill = Vec::new();
+
+    for line in lines {
+        let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
+        if parts.len() != 2 {
+            continue;
+        }
+
+        let name = parts[0];
+        let pid: u32 = match parts[1].parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        if whitelist.contains(&name) {
+            log::info!("Skipping whitelisted process: {} ({})", pid, name);
+        } else {
+            pids_to_kill.push((pid, name.to_string()));
+        }
     }
 
-    log::info!("GPU-using PIDs found: {:?}", pids);
+    if pids_to_kill.is_empty() {
+        log::info!("No GPU-using processes to kill.");
+        return Ok(());
+    }
 
     let mut sys = System::new_all();
     sys.refresh_processes();
 
-    for pid in pids {
-        if let Some(process) = sys.process(sysinfo::Pid::from(pid as usize)) {
-            log::info!("Killing process {} ({})", pid, process.name());
-            // Send SIGKILL to the process
+    for (pid, name) in pids_to_kill {
+        if let Some(process) = sys.process(Pid::from(pid as usize)) {
+            log::info!("Attempting to kill process {} ({})", pid, name);
             if process.kill_with(Signal::Kill).unwrap_or(false) {
                 log::info!("Successfully killed PID {}", pid);
             } else {
@@ -755,8 +771,11 @@ fn gpu_taskkill() -> Result<()> {
             log::info!("Process with PID {} not found", pid);
         }
     }
+
     Ok(())
 }
+
+
 
 fn get_logging_file_path() -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}.log", PKG_NAME))
@@ -908,10 +927,9 @@ fn main() -> Result<()> {
                 let new_device_state = state.battery_state.clone();
                 log::info!("new_device_state 3 {:?}", new_device_state);
                 state.update(&mut tray_icon, new_device_state, &device)?;
-            }
+            } 
 
-
-            if now > last_device_state_check_timestamp + std::time::Duration::from_secs(20)
+            if now > last_device_state_check_timestamp + std::time::Duration::from_secs(10)
             {
                 last_device_state_check_timestamp = now;
                 state.fan_actual =  get_fan_rpm(&device)?;
@@ -919,7 +937,10 @@ fn main() -> Result<()> {
                 if active_device_state != state.device_state {
                     log::warn!("overriding externally modified state {:?},",
                               active_device_state);
-                }
+                    state.update(&mut tray_icon, state.device_state, &device)?;
+               } else {
+                    tray_icon.set_tooltip(Some(state.tooltip()?))?;
+               }
             }
 
             Ok(())
