@@ -9,3 +9,5 @@ data/wireshark_dump_raw_battery_then_power.csv
 data/wireshark_dump_raw_startup.csv
 data/wireshark_dump_raw_startup2.csv
 data/wireshark_dump_silent_0 fan speed.csv
+*.lock
+Cargo.lock

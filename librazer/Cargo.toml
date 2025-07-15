@@ -1,6 +1,6 @@
 [package]
 name = "librazer"
-version = "0.8.4"
+version = "0.8.5"
 edition = "2021"
 
 [dependencies]
@@ -16,12 +16,6 @@ serde-big-array = "0.5.1"
 serde_json = "1.0.114"
 strum = "0.26.1"
 strum_macros = "0.26.1"
-libloading = "0.7"
-windows-sys = { version = "0.48", features = ["Win32_System_Threading","Win32_System_Services"] }
-num_cpus = "1.13"
-is_elevated = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.52", features = ["transactions"] }
-win-kernel-driver = { git = "https://github.com/alex-dow/winRing0-rs" }
-win_ring0 = { git = "https://github.com/alex-dow/winRing0-rs" }
