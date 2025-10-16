@@ -2,7 +2,8 @@ use crate::descriptor::{Descriptor, SUPPORTED};
 use crate::packet::Packet;
 
 use anyhow::{anyhow, Context, Result};
-use std::{thread, time};
+use log::debug;
+use std::{fs, thread, time};
 
 pub struct Device {
     device: hidapi::HidDevice,
@@ -10,16 +11,27 @@ pub struct Device {
 }
 
 // Read the model id and clip to conform with https://mysupport.razer.com/app/answers/detail/a_id/5481
+#[cfg(target_os = "windows")]
 fn read_device_model() -> Result<String> {
-    #[cfg(target_os = "windows")]
-    {
-        let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
-        let bios = hklm.open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")?;
-        let system_sku: String = bios.get_value("SystemSKU")?;
-        Ok(system_sku.chars().take(10).collect())
+    let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
+    let bios = hklm.open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")?;
+    let system_sku: String = bios.get_value("SystemSKU")?;
+    Ok(system_sku.chars().take(10).collect())
+}
+
+#[cfg(target_os = "linux")]
+fn read_device_model() -> Result<String> {
+    let sku = fs::read_to_string("/sys/devices/virtual/dmi/id/product_sku")
+        .map(|s| s.trim().to_string())
+        .map_err(|e| anyhow::anyhow!("Failed to read product SKU: {}", e))?;
+
+    debug!("Linux product SKU: {}", sku);
+
+    if sku.starts_with("RZ") {
+        Ok(sku.chars().take(10).collect())
+    } else {
+        anyhow::bail!("Invalid SKU format: {}", sku)
     }
-    #[cfg(not(target_os = "windows"))]
-    anyhow::bail!("Automatic model detection is not implemented for this platform")
 }
 
 impl Device {

@@ -3,17 +3,46 @@
 This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so your milage may vary. 
 
 The supported devices are :
-* Razer Blade 16 2025
+* Razer Blade 16 2025 (RTX 5080/5090)
+* Razer Blade 16 2024
 * Razer Blade 16 2023
+* Razer Blade 15 2022
 * Razer Blade 14 2023
 
 ## What can it control?
 
 * Performance modes (including overclock & Hyperboost)
+* **Battery care (charge limiting)** - 50%, 55%, 60%, 65%, 70%, 75%, 80%, or disabled (100%)
+* Fan control (auto/manual with RPM settings)
 * Lid logo modes: off, static, breathing
 * Keyboard brightness (works on Windows with Fn keys anyway)
+* Lights always-on toggle
+* dGPU process termination (battery saving)
 
 ![](data/demo.gif)
+
+## Battery Care Feature
+
+The enhanced battery care system allows setting precise charge limits to optimize battery longevity:
+
+**Available Options:** 50%, 55%, 60%, 65%, 70%, 75%, 80%, or disabled (100%)
+
+**Usage:**
+```bash
+# CLI
+./razer-cli auto battery-care set 50    # Set to 50% limit
+./razer-cli auto battery-care get       # Check current setting
+
+# Tray Menu
+Right-click tray icon → Battery Care → Select percentage
+```
+
+**Compatibility:**
+- ✅ **Verified:** Razer Blade 16 (2024), Razer Blade 16 (2023)
+- 🔄 **Expected to work:** All models with battery-care feature (Blade 14/15/16 series)
+- ℹ️  **Note:** Percentages match official Razer Synapse Battery Health Optimizer (50-80% range)
+
+If you experience issues on your model, please report with your device model and PID.
 
 ## What is missing vs ghelper?
 
@@ -43,7 +72,7 @@ Special thanks to
 
 **Q**: *Does it work on Linux?*
 
-**A**: I didn't test, but nothing prevents it, all libraries are cross-platform.
+**A**: Yes! Fully tested on Linux with native device detection, GTK tray support, and proper permissions via plugdev group.
 
 **Q**: *Why Windows Defender tells me it is a Trojan*
 

@@ -70,8 +70,14 @@ pub enum LightsAlwaysOn {
 
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum BatteryCare {
-    Disable = 0x50,
-    Enable = 0xd0,
+    Percent50 = 0xB2,      // 50% limit (178 decimal) - VERIFIED from BIOS
+    Percent55 = 0xB7,      // 55% limit (183 decimal) - VERIFIED works
+    Percent60 = 0xBC,      // 60% limit (188 decimal) - VERIFIED works
+    Percent65 = 0xC1,      // 65% limit (193 decimal) - calculated from pattern
+    Percent70 = 0xC6,      // 70% limit (198 decimal) - calculated from pattern
+    Percent75 = 0xCB,      // 75% limit (203 decimal) - calculated from pattern
+    Percent80 = 0xD0,      // 80% limit (208 decimal) - VERIFIED from protocol capture
+    Disable = 0x50,        // 100% - no limit (80 decimal) - VERIFIED
 }
 
 impl TryFrom<u8> for GpuBoost {
@@ -147,9 +153,47 @@ impl TryFrom<u8> for BatteryCare {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
+            0xB2 => Ok(BatteryCare::Percent50),
+            0xB7 => Ok(BatteryCare::Percent55),
+            0xBC => Ok(BatteryCare::Percent60),
+            0xC1 => Ok(BatteryCare::Percent65),
+            0xC6 => Ok(BatteryCare::Percent70),
+            0xCB => Ok(BatteryCare::Percent75),
+            0xD0 => Ok(BatteryCare::Percent80),
             0x50 => Ok(BatteryCare::Disable),
-            0xd0 => Ok(BatteryCare::Enable),
-            _ => bail!("Failed to convert {} to BatteryCare", value),
+            _ => bail!("Failed to convert {:#x} to BatteryCare", value),
+        }
+    }
+}
+
+impl BatteryCare {
+    /// Convert percentage value to BatteryCare enum, rounding to nearest supported value
+    /// Synapse supports: 50, 55, 60, 65, 70, 75, 80, 100 (disable)
+    pub fn from_percent(percent: u8) -> Result<Self> {
+        match percent {
+            0..=52 => Ok(BatteryCare::Percent50),
+            53..=57 => Ok(BatteryCare::Percent55),
+            58..=62 => Ok(BatteryCare::Percent60),
+            63..=67 => Ok(BatteryCare::Percent65),
+            68..=72 => Ok(BatteryCare::Percent70),
+            73..=77 => Ok(BatteryCare::Percent75),
+            78..=90 => Ok(BatteryCare::Percent80),
+            91..=100 => Ok(BatteryCare::Disable),
+            _ => bail!("Invalid battery care percentage: {} (must be 50-100)", percent),
+        }
+    }
+
+    /// Get the percentage value this enum represents
+    pub fn to_percent(&self) -> u8 {
+        match self {
+            BatteryCare::Percent50 => 50,
+            BatteryCare::Percent55 => 55,
+            BatteryCare::Percent60 => 60,
+            BatteryCare::Percent65 => 65,
+            BatteryCare::Percent70 => 70,
+            BatteryCare::Percent75 => 75,
+            BatteryCare::Percent80 => 80,
+            BatteryCare::Disable => 100,
         }
     }
 }

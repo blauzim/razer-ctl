@@ -14,8 +14,7 @@ use tray_icon::{
 };
 
 use std::process::Command as procCommand;
-use std::os::windows::process::CommandExt;
-use sysinfo::{ProcessExt, Signal, System, SystemExt, Pid};
+use sysinfo::{ProcessExt, Signal, System, SystemExt};
 
 use single_instance::SingleInstance;
 
@@ -27,10 +26,8 @@ use windows::Win32::System::Threading::{
     IDLE_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
     PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
 };
-
-use windows::Win32::System::Power::{
-    GetSystemPowerStatus, SYSTEM_POWER_STATUS
-};
+#[cfg(target_os = "windows")]
+use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -175,7 +172,7 @@ impl Default for DeviceState {
                 keyboard_brightness: 0,
                 always_on: LightsAlwaysOn::Disable,
             },
-            battery_care: BatteryCare::Enable,
+            battery_care: BatteryCare::Percent80,
             fan_speed : FanSpeed::Auto,
         }
     }
@@ -498,27 +495,48 @@ impl ProgramState {
                 .collect::<Vec<_>>(),
         )?)?;
 
-        // battery health optimizer
-        menu.append_items(&[
-            &PredefinedMenuItem::separator(),
-            &CheckMenuItem::with_id(
-                "bho",
-                "Battery Health Optimizer",
-                true,
-                dstate.battery_care == BatteryCare::Enable,
-                None,
-            ),
-        ])?;
-        event_handlers.insert(
-            "bho".to_string(),
-            DeviceState {
-                battery_care: match dstate.battery_care {
-                    BatteryCare::Enable => BatteryCare::Disable,
-                    BatteryCare::Disable => BatteryCare::Enable,
-                },
-                ..*dstate
-            },
-        );
+        // battery care submenu
+        menu.append(&PredefinedMenuItem::separator())?;
+        
+        let battery_care_options = [
+            (BatteryCare::Percent50, "50%", "battery_care_50"),
+            (BatteryCare::Percent55, "55%", "battery_care_55"),
+            (BatteryCare::Percent60, "60%", "battery_care_60"),
+            (BatteryCare::Percent65, "65%", "battery_care_65"),
+            (BatteryCare::Percent70, "70%", "battery_care_70"),
+            (BatteryCare::Percent75, "75%", "battery_care_75"),
+            (BatteryCare::Percent80, "80%", "battery_care_80"),
+            (BatteryCare::Disable, "Disabled (100%)", "battery_care_disable"),
+        ];
+        
+        let battery_care_items: Vec<CheckMenuItem> = battery_care_options
+            .iter()
+            .map(|(mode, label, id)| {
+                event_handlers.insert(
+                    id.to_string(),
+                    DeviceState {
+                        battery_care: *mode,
+                        ..*dstate
+                    },
+                );
+                CheckMenuItem::with_id(
+                    id,
+                    label,
+                    true,
+                    dstate.battery_care == *mode,
+                    None,
+                )
+            })
+            .collect();
+        
+        menu.append(&Submenu::with_items(
+            "Battery Care",
+            true,
+            &battery_care_items
+                .iter()
+                .map(|i| i as &dyn IsMenuItem)
+                .collect::<Vec<_>>(),
+        )?)?;
 
         // gpu task killer
         menu.append(&PredefinedMenuItem::separator())?;
@@ -623,8 +641,16 @@ impl ProgramState {
             status.push('💡');
         }
 
-        if self.device_state.battery_care == BatteryCare::Enable {
-            status.push('🔋');
+        // Battery care with percentage
+        match self.device_state.battery_care {
+            BatteryCare::Disable => {}, // No indicator for disabled
+            _ => {
+                writeln!(
+                    &mut info,
+                    "🔋 Battery Care: {}%",
+                    self.device_state.battery_care.to_percent()
+                )?;
+            }
         }
 
         Ok((info.to_string() + &status).trim_end().to_string())
@@ -684,6 +710,7 @@ impl ProgramState {
 
 
 
+#[cfg(target_os = "windows")]
 fn get_power_state() -> Result<bool> {
     let mut ac_power : bool = true;
     unsafe {
@@ -703,6 +730,29 @@ fn get_power_state() -> Result<bool> {
     Ok(ac_power)
 }
 
+#[cfg(target_os = "linux")]
+fn get_power_state() -> Result<bool> {
+    // Try AC adapter first
+    if let Ok(online) = std::fs::read_to_string("/sys/class/power_supply/AC/online")
+        .or_else(|_| std::fs::read_to_string("/sys/class/power_supply/AC0/online"))
+        .or_else(|_| std::fs::read_to_string("/sys/class/power_supply/ACAD/online"))
+    {
+        return Ok(online.trim() == "1");
+    }
+    
+    // Fallback: check battery status
+    if let Ok(status) = std::fs::read_to_string("/sys/class/power_supply/BAT0/status")
+        .or_else(|_| std::fs::read_to_string("/sys/class/power_supply/BAT1/status"))
+    {
+        let status = status.trim();
+        return Ok(status == "Charging" || status == "Full" || status == "Not charging");
+    }
+    
+    // Default to AC power if we can't detect
+    log::warn!("Could not detect power state, assuming AC power");
+    Ok(true)
+}
+
 fn get_fan_rpm(device: &device::Device) -> Result<FanRpm> {
     let fan_actual = FanRpm {
         fan1 : command::get_fan_actual_rpm(device, librazer::types::FanZone::Zone1)?,
@@ -712,7 +762,9 @@ fn get_fan_rpm(device: &device::Device) -> Result<FanRpm> {
     Ok(fan_actual)
 }
 
+#[cfg(target_os = "windows")]
 fn gpu_taskkill() -> Result<()> {
+    use std::os::windows::process::CommandExt;
     let whitelist: &[&str] = &["explorer.exe", "Insufficient Permissions"];
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -760,7 +812,7 @@ fn gpu_taskkill() -> Result<()> {
     sys.refresh_processes();
 
     for (pid, name) in pids_to_kill {
-        if let Some(process) = sys.process(Pid::from(pid as usize)) {
+        if let Some(process) = sys.process(sysinfo::Pid::from(pid as usize)) {
             log::info!("Attempting to kill process {} ({})", pid, name);
             if process.kill_with(Signal::Kill).unwrap_or(false) {
                 log::info!("Successfully killed PID {}", pid);
@@ -775,6 +827,46 @@ fn gpu_taskkill() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn gpu_taskkill() -> Result<()> {
+    // dGPU process termination for Linux
+    let output = procCommand::new("nvidia-smi")
+        .args(&["--query-compute-apps=name,pid", "--format=csv,noheader"])
+        .output();
+    
+    if output.is_err() {
+        log::info!("nvidia-smi not found or no GPU processes");
+        return Ok(());
+    }
+    
+    let output = output?;
+    if !output.status.success() {
+        return Ok(());
+    }
+    
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut system = System::new_all();
+    system.refresh_all();
+    
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        
+        let pid: usize = match parts[1].parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        
+        if let Some(process) = system.process(sysinfo::Pid::from(pid)) {
+            log::info!("Terminating GPU process: {} (PID: {})", parts[0], pid);
+            process.kill_with(Signal::Term);
+        }
+    }
+    
+    Ok(())
+}
 
 
 fn get_logging_file_path() -> std::path::PathBuf {
@@ -848,6 +940,12 @@ fn efficiency_mode() {
 }
 
 fn main() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        // Initialize GTK for tray icon on Linux
+        gtk::init().map_err(|_| anyhow::anyhow!("Failed to initialize GTK"))?;
+    }
+    
     #[cfg(target_os = "windows")]
     efficiency_mode();
 
