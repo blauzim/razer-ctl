@@ -10,6 +10,7 @@ use librazer::feature::Feature;
 
 use anyhow::Result;
 use clap::{arg, Command};
+use log::info;
 use std::process::Command as procCommand;
 use sysinfo::{ProcessExt, Signal, System, SystemExt};
 
@@ -81,9 +82,67 @@ macro_rules! impl_unary_cli {
 }
 
 impl_unary_cli! {<feature::KbdBacklight><u8>("Set keyboard backlight brightness", "Number in range [0, 255]", command::set_keyboard_brightness, command::get_keyboard_brightness)}
-impl_unary_cli! {<feature::BatteryCare><BatteryCare>("Enable or disable battery care", "", command::set_battery_care, command::get_battery_care)}
 impl_unary_cli! {<feature::LidLogo><LogoMode>("Set lid logo mode", "", command::set_logo_mode, command::get_logo_mode)}
 impl_unary_cli! {<feature::LightsAlwaysOn><LightsAlwaysOn>("Set lights always on", "", command::set_lights_always_on, command::get_lights_always_on)}
+
+impl Cli for feature::BatteryCare {
+    fn cmd(&self) -> Option<Command> {
+        Some(
+            clap::Command::new(self.name())
+                .about("Control battery care (charge limiting)")
+                .subcommand(
+                    clap::Command::new("set")
+                        .about("Set battery charge limit percentage")
+                        .arg(
+                            arg!(<PERCENT> "Charge limit percentage (50-100, rounds to: 50, 55, 60, 65, 70, 75, 80, 100)")
+                                .value_parser(clap::value_parser!(u8).range(50..=100))
+                        )
+                )
+                .subcommand(clap::Command::new("enable").about("Enable battery care (limit to 80%) [deprecated: use 'set 80']"))
+                .subcommand(clap::Command::new("disable").about("Disable battery care (charge to 100%) [deprecated: use 'set 100']"))
+                .subcommand(clap::Command::new("get").about("Get current battery care setting"))
+                .arg_required_else_help(true),
+        )
+    }
+
+    fn handle(&self, device: &device::Device, matches: &clap::ArgMatches) -> Result<()> {
+        match matches.subcommand() {
+            Some((ident, sub_matches)) if ident == self.name() => {
+                match sub_matches.subcommand() {
+                    Some(("set", set_matches)) => {
+                        let percent = *set_matches.get_one::<u8>("PERCENT").unwrap();
+                        let mode = BatteryCare::from_percent(percent)?;
+                        command::set_battery_care(device, mode)?;
+                        info!("Battery care set to {}% limit", mode.to_percent());
+                        Ok(())
+                    }
+                    Some(("enable", _)) => {
+                        command::set_battery_care(device, BatteryCare::Percent80)?;
+                        info!("Battery care enabled (charge limit set to 80%)");
+                        Ok(())
+                    }
+                    Some(("disable", _)) => {
+                        command::set_battery_care(device, BatteryCare::Disable)?;
+                        info!("Battery care disabled (will charge to 100%)");
+                        Ok(())
+                    }
+                    Some(("get", _)) => {
+                        let current = command::get_battery_care(device)?;
+                        info!("Current battery care: {}%", current.to_percent());
+                        Ok(())
+                    }
+                    _ => Ok(()),
+                }
+            }
+            Some(("info", _)) => {
+                let current = command::get_battery_care(device)?;
+                info!("{}: {}%", self.name(), current.to_percent());
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
 
 struct CustomCommand;
 
@@ -314,6 +373,8 @@ fn gen_cli_features(feature_list: &[&str]) -> Vec<Box<dyn Cli>> {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
+    
     let info_cmd = clap::Command::new("info").about("Get device info");
     let auto_cmd = clap::Command::new("auto")
         .about("Automatically detect supported Razer device and enable device specific features")

@@ -18,7 +18,7 @@ pub struct Descriptor {
 pub const SUPPORTED: &[Descriptor] = &[
     Descriptor {
         model_number_prefix: "RZ09-0483T",
-        name: "Razer Blade 16” (2023) Black",
+        name: "Razer Blade 16 (2023) Black",
         pid: 0x029f,
         features: &[
             "battery-care",
@@ -34,7 +34,7 @@ pub const SUPPORTED: &[Descriptor] = &[
     },
     Descriptor {
         model_number_prefix: "RZ09-0482X",
-        name: "Razer Blade 14” (2023) Mercury",
+        name: "Razer Blade 14 (2023) Mercury",
         pid: 0x029d,
         features: &[
             "battery-care",
@@ -48,8 +48,24 @@ pub const SUPPORTED: &[Descriptor] = &[
         perf_modes: None,  // All modes supported
     },
     Descriptor {
+        model_number_prefix: "RZ09-0510S",
+        name: "Razer Blade 16 (2024)",
+        pid: 0x02b7,
+        features: &[
+            "battery-care",
+            "fan",
+            "kbd-backlight",
+            "lid-logo",
+            "lights-always-on",
+            "perf",
+        ],
+        init_cmds: &[],
+        fan_zones: 2,
+        perf_modes: None,  // All modes supported
+    },
+    Descriptor {
         model_number_prefix: "RZ09-05289",
-        name: "Razer Blade 16” (2025) 5090",
+        name: "Razer Blade 16 (2025) RTX 5090",
         pid: 0x02c6,
         features: &[
             "battery-care",
@@ -65,7 +81,23 @@ pub const SUPPORTED: &[Descriptor] = &[
     },
     Descriptor {
         model_number_prefix: "RZ09-05288",
-        name: "Razer Blade 16” (2025) 5080",
+        name: "Razer Blade 16 (2025) 5080",
+        pid: 0x02c6,
+        features: &[
+            "battery-care",
+            "fan",
+            "kbd-backlight",
+            "lid-logo",
+            "lights-always-on",
+            "perf",
+        ],
+        init_cmds: &[0x0081, 0x0086, 0x0f90, 0x0086, 0x0f10, 0x0087],
+        fan_zones: 2,
+        perf_modes: None,  // All modes supported
+    },
+    Descriptor {
+        model_number_prefix: "RZ09-05286",
+        name: "Razer Blade 16” (2025) 5070",
         pid: 0x02c6,
         features: &[
             "battery-care",
@@ -81,7 +113,7 @@ pub const SUPPORTED: &[Descriptor] = &[
     },
     Descriptor {
         model_number_prefix: "RZ09-0421N",
-        name: "Razer Blade 15” (2022)",
+        name: "Razer Blade 15 (2022)",
         pid: 0x028a,
         features: &[
             "battery-care",
