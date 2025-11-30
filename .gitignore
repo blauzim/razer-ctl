@@ -8,6 +8,31 @@ data/razer_commands.csv
 data/wireshark_dump_raw_battery_then_power.csv
 data/wireshark_dump_raw_startup.csv
 data/wireshark_dump_raw_startup2.csv
+data/wireshark_dump_raw_startup.csv
 data/wireshark_dump_silent_0 fan speed.csv
 *.lock
 Cargo.lock
+
+# Workspace and cursor files (keep local only)
+*.code-workspace
+.cursor/
+*.mdc
+
+# Session documentation (not for repo)
+*RECOVERED*.md
+*MERGE*.md
+*MERGED*.md
+*SUMMARY*.txt
+*PR_SUMMARY*.md
+COMPARISON_WITH*.md
+SYSTEM_CONFIGURATION*.md
+RAZER_TRAY*.md
+FINAL_STATUS.md
+
+# Helper scripts (local development)
+*.env
+start-razer-tray-quiet.sh
+test-*.sh
+
+# b-helper (separate project, not for upstream PR)
+b-helper/
