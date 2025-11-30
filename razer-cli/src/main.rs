@@ -381,15 +381,22 @@ fn main() -> Result<()> {
         .subcommand(info_cmd.clone())
         .subcommand_required(true);
 
-    let manual_cmd =clap::Command::new("manual").about("Manually specify PID of the Razer device and enable all features (many might not work)")
-            .arg(
-                arg!(-p --pid <PID> "PID of the Razer device to use")
+    let manual_cmd = clap::Command::new("manual")
+        .about("Manually specify PID of the Razer device and enable all features (many might not work)")
+        .arg(
+            arg!(-p --pid <PID> "PID of the Razer device to use")
                 .required(true)
                 .value_parser(clap_num::maybe_hex::<u16>)
-            )
-            .arg_required_else_help(true)
-            .subcommand(info_cmd)
-            .subcommand_required(true);
+        )
+        .arg(
+            arg!(-z --"fan-zones" <ZONES> "Number of fan zones (default: 2, Blade 17 2021 has 4)")
+                .required(false)
+                .value_parser(clap::value_parser!(u8))
+                .default_value("2")
+        )
+        .arg_required_else_help(true)
+        .subcommand(info_cmd)
+        .subcommand_required(true);
 
     // TODO: find a better way to detect auto mode in advance
     let is_auto_mode = std::env::args_os().nth(1) == Some("auto".into());
@@ -426,12 +433,15 @@ fn main() -> Result<()> {
             handle(&device.unwrap(), submatches, &cli_features)?;
         }
         Some(("manual", submatches)) => {
+            let fan_zones = *submatches.get_one::<u8>("fan-zones").unwrap();
             let device = device::Device::new(librazer::descriptor::Descriptor {
                 model_number_prefix: "Unknown",
                 name: "Unknown",
                 pid: *submatches.get_one::<u16>("pid").unwrap(),
                 features: feature::ALL_FEATURES,
-                init_cmds : &[]
+                init_cmds: &[],
+                fan_zones,
+                perf_modes: None,  // All modes allowed for manual/unknown devices
             })?;
             handle(&device, submatches, &cli_features)?;
         }

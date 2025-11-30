@@ -3,11 +3,14 @@
 This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so your milage may vary. 
 
 The supported devices are :
+* Razer Blade 17 2021 (Balanced and Custom modes only)
 * Razer Blade 16 2025 (RTX 5080/5090)
 * Razer Blade 16 2024
 * Razer Blade 16 2023
 * Razer Blade 15 2022
 * Razer Blade 14 2023
+
+**Note:** The Razer Blade 17 2021 only supports Balanced and Custom performance modes. Other modes (Silent, Performance, Battery, Hyperboost) are not available on this model.
 
 ## What can it control?
 
@@ -57,7 +60,7 @@ If you experience issues on your model, please report with your device model and
 Read about the reverse engineering process for Razer Blade 16 in [data/README.md](data/README.md). You can follow the steps and adjust the utility for other Razer laptops.
 
 Run `razer-cli enumerate` to get PID.
-Then `razer-cli -p 0xPID info` to check if the application works for your Razer device.
+Then `razer-cli manual -p 0xPID info` to check if the application works for your Razer device.
 
 Special thanks to
 * [tdakhran](https://github.com/tdakran) for the original code for this fork [repository](https://github.com/tdakhran/razer-ctl)
