@@ -12,6 +12,21 @@ An example of single packet: `144	50.302891	host	1.1.0	USBHID	126	001c000000040d
 
 The sniffing process begins with start capture in WireShark, then do actions in Razer Synapse and annotate which action corresponds to which USB packet.
 
+## Validated Devices
+
+### Razer Blade 17" (2021) - RZ09-0406A
+Protocol validated via Wireshark capture (Nov 2025).
+
+**Key findings:**
+- Only **Balanced** and **Custom** performance modes supported (no Silent, Performance, Battery, Hyperboost)
+- No battery care feature on this model
+- **4 fan zones** (vs 2 zones on Blade 16)
+- Max fan RPM: 4300 (0x2b × 100)
+- Commands match documented protocol exactly:
+  - `0x0d02` for perf/fan mode (zones 1-4)
+  - `0x0d01` for fan RPM (zones 1-4)  
+  - `0x0d07` for CPU/GPU boost in Custom mode
+
 ## Process the Data
 
 I dumped some examples

@@ -29,10 +29,12 @@ enum CommandStatus {
 
 impl Packet {
     pub fn new(command: u16, args: &[u8]) -> Packet {
+        assert!(args.len() <= 80, "args too long: {} > 80", args.len());
+
         let mut args_buffer = [0x00; 80];
         args_buffer[..args.len()].copy_from_slice(args);
 
-        Packet {
+        let mut packet = Packet {
             status: CommandStatus::New as u8,
             id: rand::thread_rng().gen(),
             remaining_packets: 0x0000,
@@ -43,7 +45,19 @@ impl Packet {
             args: args_buffer,
             crc: 0x00,
             reserved: 0x00,
-        }
+        };
+
+        // Compute CRC: XOR of bytes 2-87 (remaining_packets through end of args)
+        // This matches Razer Synapse's packet format
+        packet.crc = packet.calculate_crc();
+        packet
+    }
+
+    /// Calculate CRC as XOR of bytes 2-87 (remaining_packets through end of args).
+    /// Based on Wireshark captures of Razer Synapse traffic.
+    fn calculate_crc(&self) -> u8 {
+        let bytes: Vec<u8> = self.into();
+        bytes[2..88].iter().fold(0u8, |acc, &b| acc ^ b)
     }
 
     pub fn set_args(&mut self, args: &[u8]) {
@@ -99,5 +113,49 @@ impl TryFrom<&[u8]> for Packet {
         );
 
         Ok(bincode::deserialize::<Packet>(data)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test CRC calculation matches Razer Synapse captures.
+    /// From Wireshark capture: SET CPU Boost to "Boost" (3)
+    /// Command 0x0d07, args [0x01, 0x01, 0x03], expected CRC = 0x0a
+    #[test]
+    fn test_crc_matches_synapse_cpu_boost() {
+        // Create packet with known ID to match capture
+        let mut packet = Packet::new(0x0d07, &[0x01, 0x01, 0x03]);
+        packet.id = 0x1d; // Match the capture's packet ID
+        packet.crc = packet.calculate_crc();
+
+        assert_eq!(packet.crc, 0x0a, "CRC should match Synapse capture for CPU boost");
+    }
+
+    /// Test CRC calculation for GPU boost command.
+    /// From Wireshark capture: SET GPU Boost to "High" (2)
+    /// Command 0x0d07, args [0x01, 0x02, 0x02], expected CRC = 0x08
+    #[test]
+    fn test_crc_matches_synapse_gpu_boost() {
+        let mut packet = Packet::new(0x0d07, &[0x01, 0x02, 0x02]);
+        packet.id = 0x1e; // Match the capture's packet ID
+        packet.crc = packet.calculate_crc();
+
+        assert_eq!(packet.crc, 0x08, "CRC should match Synapse capture for GPU boost");
+    }
+
+    #[test]
+    fn test_packet_serialization_size() {
+        let packet = Packet::new(0x0d07, &[0x01, 0x01, 0x03]);
+        let bytes: Vec<u8> = (&packet).into();
+        assert_eq!(bytes.len(), 90, "Packet should be exactly 90 bytes");
+    }
+
+    #[test]
+    #[should_panic(expected = "args too long")]
+    fn test_args_bounds_check() {
+        let oversized_args = [0u8; 81];
+        Packet::new(0x0d07, &oversized_args);
     }
 }

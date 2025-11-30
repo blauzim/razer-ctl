@@ -9,10 +9,12 @@ pub enum Cluster {
     Gpu = 0x02,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum FanZone {
     Zone1 = 0x01,
     Zone2 = 0x02,
+    Zone3 = 0x03,
+    Zone4 = 0x04,
 }
 
 #[derive(EnumIter, Clone, Copy, Debug, PartialEq, ValueEnum)]
@@ -147,7 +149,7 @@ impl TryFrom<u8> for BatteryCare {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0x50 => Ok(BatteryCare::Disable),
+            0x00 | 0x50 => Ok(BatteryCare::Disable),
             0xd0 => Ok(BatteryCare::Enable),
             _ => bail!("Failed to convert {} to BatteryCare", value),
         }

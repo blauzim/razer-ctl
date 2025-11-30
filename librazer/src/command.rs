@@ -14,8 +14,18 @@ fn _send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
 }
 
 fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Result<()> {
-
-    [1, 2].into_iter().try_for_each(|zone| {
+    // Check if performance mode is supported by this device
+    if let Some(supported_modes) = device.info.perf_modes {
+        ensure!(
+            supported_modes.contains(&perf_mode),
+            "Performance mode {:?} is not supported on {}. Supported modes: {:?}",
+            perf_mode,
+            device.info.name,
+            supported_modes
+        );
+    }
+    
+    (1..=device.info.fan_zones).try_for_each(|zone| {
         _send_command(
             device,
             0x0d02,
@@ -50,28 +60,12 @@ pub fn set_perf_mode(device: &Device, perf_mode: PerfMode) -> Result<()> {
 }
 
 pub fn get_perf_mode(device: &Device) -> Result<(PerfMode, FanMode)> {
-    let [r1, r2]: [Result<(PerfMode, FanMode)>; 2] = [1, 2].map(|zone| {
-        let response = device.send(Packet::new(0x0d82, &[0, zone, 0, 0]))?;
-        Ok((
-            PerfMode::try_from(response.get_args()[2])?,
-            FanMode::try_from(response.get_args()[3])?,
-        ))
-    });
-
-    ensure!(
-        r1.is_ok() && r2.is_ok(),
-        "Failed to get performance mode and fan mode: r1 = {:?}, r2 = {:?}",
-        r1,
-        r2
-    );
-
-    let r1 = r1?;
-    let r2 = r2?;
-
-    //let r1 = r1?;
-    ensure!(r1 == r2, "Modes do not match: r1 = {:?}, r2 = {:?}", r1, r2);
-
-    Ok(r1)
+    // Query zone 1 - all zones should have the same mode
+    let response = device.send(Packet::new(0x0d82, &[0, 1, 0, 0]))?;
+    Ok((
+        PerfMode::try_from(response.get_args()[2])?,
+        FanMode::try_from(response.get_args()[3])?,
+    ))
 }
 
 pub fn set_cpu_boost(device: &Device, boost: CpuBoost) -> Result<()> {
@@ -99,11 +93,9 @@ pub fn set_fan_rpm(device: &Device, rpm: u16, check_mode: bool) -> Result<()> {
             FanMode::Manual
         );
     }
-    [FanZone::Zone1, FanZone::Zone2]
-        .into_iter()
-        .try_for_each(|zone| {
-            _send_command(device, 0x0d01, &[0, zone as u8, (rpm / 100) as u8]).map(|_| ())
-        })
+    (1..=device.info.fan_zones).try_for_each(|zone| {
+        _send_command(device, 0x0d01, &[0, zone, (rpm / 100) as u8]).map(|_| ())
+    })
 }
 
 pub fn get_fan_rpm(device: &Device, fan_zone: FanZone) -> Result<u16> {
