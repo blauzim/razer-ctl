@@ -2,8 +2,7 @@ use crate::descriptor::{Descriptor, SUPPORTED};
 use crate::packet::Packet;
 
 use anyhow::{anyhow, Context, Result};
-use log::debug;
-use std::{fs, thread, time};
+use std::{thread, time};
 
 pub struct Device {
     device: hidapi::HidDevice,
