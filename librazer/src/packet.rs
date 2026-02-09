@@ -32,7 +32,7 @@ impl Packet {
         let mut args_buffer = [0x00; 80];
         args_buffer[..args.len()].copy_from_slice(args);
 
-        Packet {
+        let mut packet = Packet {
             status: CommandStatus::New as u8,
             id: rand::thread_rng().gen(),
             remaining_packets: 0x0000,
@@ -43,7 +43,9 @@ impl Packet {
             args: args_buffer,
             crc: 0x00,
             reserved: 0x00,
-        }
+        };
+        packet.crc = packet.calc_crc();
+        packet
     }
 
     pub fn set_args(&mut self, args: &[u8]) {
@@ -52,6 +54,13 @@ impl Packet {
 
     pub fn get_args(&self) -> &[u8] {
         &self.args
+    }
+
+    fn calc_crc(&self) -> u8 {
+        // XOR of bytes 2..87 (status through args, excluding crc and reserved)
+        // per the Razer USB HID protocol
+        let bytes: Vec<u8> = bincode::serialize(self).unwrap();
+        bytes[2..88].iter().fold(0u8, |acc, &b| acc ^ b)
     }
 
     pub fn ensure_matches_report(&self, report: &Packet) -> Result<()> {

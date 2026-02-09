@@ -1043,17 +1043,14 @@ fn main() -> Result<()> {
 
             Ok(())
         })() {
-            loop {
-                log::error!("trying to recover from: {:?}", e);
-                match init(&mut tray_icon, &device) {
-                    Ok(new_state) => {
-                        state = new_state;
-                        break;
-                    },
-                    Err(e) => {
-                        log::error!("failed to recover: {:?}", e);
-                        *control_flow = ControlFlow::WaitUntil(now + std::time::Duration::from_millis(1000));
-                    }
+            log::error!("trying to recover from: {:?}", e);
+            match init(&mut tray_icon, &device) {
+                Ok(new_state) => {
+                    state = new_state;
+                },
+                Err(e) => {
+                    log::error!("failed to recover: {:?}", e);
+                    *control_flow = ControlFlow::WaitUntil(now + std::time::Duration::from_secs(5));
                 }
             }
         }

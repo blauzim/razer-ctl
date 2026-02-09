@@ -3,9 +3,9 @@
 This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakran) first created in 2024.  It has been updated to add support for the new Razer Blade 16 2025. It is still very much a work in progress and not all features have been tested on all models so your milage may vary. 
 
 The supported devices are :
-* Razer Blade 16 2025 (RTX 5080/5090)
+* Razer Blade 16 2025 (RTX 5070/5080/5090)
 * Razer Blade 16 2024
-* Razer Blade 16 2023
+* Razer Blade 16 2023 (Black / RZ09-0483U)
 * Razer Blade 15 2022
 * Razer Blade 14 2023
 
@@ -57,7 +57,8 @@ If you experience issues on your model, please report with your device model and
 Read about the reverse engineering process for Razer Blade 16 in [data/README.md](data/README.md). You can follow the steps and adjust the utility for other Razer laptops.
 
 Run `razer-cli enumerate` to get PID.
-Then `razer-cli -p 0xPID info` to check if the application works for your Razer device.
+Then `razer-cli auto info` to check if the application works for your Razer device.
+For unsupported models, try `razer-cli manual -p 0xPID info`.
 
 Special thanks to
 * [tdakhran](https://github.com/tdakran) for the original code for this fork [repository](https://github.com/tdakhran/razer-ctl)
@@ -68,7 +69,7 @@ Special thanks to
 
 **Q**: *How to build?*
 
-**A**: I build in WSL2(Arch) with `cargo run --release --target x86_64-pc-windows-gnu --bin razer-tray`.
+**A**: Build natively with `cargo build --release --bin razer-cli` (or `--bin razer-tray`). Requires Rust toolchain. Cross-compilation from WSL2 also works with `--target x86_64-pc-windows-gnu`.
 
 **Q**: *Does it work on Linux?*
 

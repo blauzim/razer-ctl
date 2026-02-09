@@ -43,13 +43,23 @@ impl Device {
     pub fn new(descriptor: Descriptor) -> Result<Device> {
         let api = hidapi::HidApi::new().context("Failed to create hid api")?;
 
+        // Razer protocol uses 90-byte packets + 1 byte report ID = 91 bytes.
+        // The probe must match this size so that on Windows, HidD_SetFeature
+        // only succeeds on the interface with the correct FeatureReportByteLength.
+        // A smaller probe (e.g. 2 bytes) would pass on keyboard interfaces
+        // that have small feature reports, causing the wrong interface to be selected.
+        let probe_report = vec![0u8; 1 + std::mem::size_of::<Packet>()];
+
         // there are multiple devices with the same pid, pick first that support feature report
         for info in api.device_list().filter(|info| {
             (info.vendor_id(), info.product_id()) == (Device::RAZER_VID, descriptor.pid)
         }) {
             let path = info.path();
-            let device = api.open_path(path)?;
-            if device.send_feature_report(&[0, 0]).is_ok() {
+            let device = match api.open_path(path) {
+                Ok(device) => device,
+                Err(_) => continue,
+            };
+            if device.send_feature_report(&probe_report).is_ok() {
                 return Ok(Device {
                     device,
                     info: descriptor.clone(),

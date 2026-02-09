@@ -191,7 +191,7 @@ impl Cli for feature::Fan {
                 .about("Control fan")
                 .subcommand(clap::Command::new("auto").about("Set fan mode to auto"))
                 .subcommand(clap::Command::new("manual").about("Set fan mode to manual"))
-                .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(u16).range(2000..=5000)}, "rpm", "RPM", "Set fan rpm", "Fan RPM in range [2000, 5000]"})
+                .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(u16).range(0..=5500)}, "rpm", "RPM", "Set fan rpm", "Fan RPM in range [0, 5500]"})
                 .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(MaxFanSpeedMode)}, "max", "MAX", "Control Max Fan Speed Mode", "Max Fan Speed Mode"})
                 .arg_required_else_help(true),
         )
