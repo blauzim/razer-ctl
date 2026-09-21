@@ -4,6 +4,7 @@ This is a fork of the razer-ctl program that [tdakhran](https://github.com/tdakr
 
 The supported devices are :
 * Razer Blade 16 2025 (RTX 5080/5090)
+* Razer Blade 14 2025 (RTX 5070, RZ09-0530)
 * Razer Blade 16 2024
 * Razer Blade 16 2023
 * Razer Blade 15 2022
