@@ -95,6 +95,24 @@ pub const SUPPORTED: &[Descriptor] = &[
         init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
     },
     Descriptor {
+        // Razer Blade 14 (2025), RTX 5070. SystemSKU RZ09-05306ES3, BIOS 1.06.
+        // PID observed on hardware; same generation as the 2025 Blade 16 (0x02c6).
+        // Validated on-device with init_cmds empty: all reads succeed (perf/fan
+        // mode, actual RPM, kbd, lights, battery-care) and perf-mode writes are
+        // applied and read back. No lid logo on this chassis.
+        model_number_prefix: "RZ09-05306",
+        name: "Razer Blade 14 (2025) RTX 5070",
+        pid: 0x02c5,
+        features: &[
+            "battery-care",
+            "fan",
+            "kbd-backlight",
+            "lights-always-on",
+            "perf",
+        ],
+        init_cmds : &[],
+    },
+    Descriptor {
         model_number_prefix: "RZ09-0421N",
         name: "Razer Blade 15 (2022)",
         pid: 0x028a,
