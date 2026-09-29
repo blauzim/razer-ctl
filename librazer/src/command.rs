@@ -2,7 +2,7 @@ use crate::device::Device;
 use crate::packet::Packet;
 use crate::types::{
     BatteryCare, Cluster, CpuBoost, FanMode, FanZone, GpuBoost, LightsAlwaysOn, LogoMode,
-    MaxFanSpeedMode, PerfMode,
+    MaxFanSpeedMode, PerfMode, FAN_RPM_MAX, FAN_RPM_MIN,
 };
 
 use anyhow::{bail, ensure, Result};
@@ -14,7 +14,6 @@ fn _send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
 }
 
 fn _set_perf_mode(device: &Device, perf_mode: PerfMode, fan_mode: FanMode) -> Result<()> {
-
     [1, 2].into_iter().try_for_each(|zone| {
         _send_command(
             device,
@@ -90,8 +89,8 @@ pub fn get_gpu_boost(device: &Device) -> Result<GpuBoost> {
     GpuBoost::try_from(_get_boost(device, Cluster::Gpu)?)
 }
 
-pub fn set_fan_rpm(device: &Device, rpm: u16, check_mode: bool) -> Result<()> {
-    ensure!((0..=5500).contains(&rpm));
+pub fn set_fan_rpm_zone(device: &Device, zone: FanZone, rpm: u16, check_mode: bool) -> Result<()> {
+    ensure!((FAN_RPM_MIN..=FAN_RPM_MAX).contains(&rpm));
     if check_mode {
         ensure!(
             matches!(get_perf_mode(device)?, (_, FanMode::Manual)),
@@ -99,11 +98,13 @@ pub fn set_fan_rpm(device: &Device, rpm: u16, check_mode: bool) -> Result<()> {
             FanMode::Manual
         );
     }
+    _send_command(device, 0x0d01, &[0, zone as u8, (rpm / 100) as u8]).map(|_| ())
+}
+
+pub fn set_fan_rpm(device: &Device, rpm: u16, check_mode: bool) -> Result<()> {
     [FanZone::Zone1, FanZone::Zone2]
         .into_iter()
-        .try_for_each(|zone| {
-            _send_command(device, 0x0d01, &[0, zone as u8, (rpm / 100) as u8]).map(|_| ())
-        })
+        .try_for_each(|zone| set_fan_rpm_zone(device, zone, rpm, check_mode))
 }
 
 pub fn get_fan_rpm(device: &Device, fan_zone: FanZone) -> Result<u16> {
@@ -118,12 +119,10 @@ pub fn get_fan_actual_rpm(device: &Device, fan_zone: FanZone) -> Result<u16> {
     Ok(response.get_args()[2] as u16 * 100)
 }
 
-
 pub fn send_command(device: &Device, command: u16, args: &[u8]) -> Result<Packet> {
     let response = device.send(Packet::new(command, args))?;
     Ok(response)
 }
-
 
 pub fn set_max_fan_speed_mode(device: &Device, mode: MaxFanSpeedMode) -> Result<()> {
     ensure!(
@@ -144,9 +143,9 @@ pub fn set_fan_mode(device: &Device, mode: FanMode) -> Result<()> {
 
 pub fn custom_command(device: &Device, command: u16, args: &[u8]) -> Result<()> {
     let report = Packet::new(command, args);
-    println!("Report   {:?}", report);
+    println!("Report   {report:?}");
     let response = device.send(report)?;
-    println!("Response {:?}", response);
+    println!("Response {response:?}");
     Ok(())
 }
 

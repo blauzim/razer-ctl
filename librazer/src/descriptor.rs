@@ -23,7 +23,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[],
+        init_cmds: &[],
     },
     Descriptor {
         model_number_prefix: "RZ09-0482X",
@@ -36,7 +36,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[],
+        init_cmds: &[],
     },
     Descriptor {
         model_number_prefix: "RZ09-0510S",
@@ -50,7 +50,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[],
+        init_cmds: &[],
     },
     Descriptor {
         model_number_prefix: "RZ09-05289",
@@ -64,7 +64,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
+        init_cmds: &[0x0081, 0x0086, 0x0f90, 0x0086, 0x0f10, 0x0087],
     },
     Descriptor {
         model_number_prefix: "RZ09-05288",
@@ -78,11 +78,11 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
+        init_cmds: &[0x0081, 0x0086, 0x0f90, 0x0086, 0x0f10, 0x0087],
     },
     Descriptor {
         model_number_prefix: "RZ09-05286",
-        name: "Razer Blade 16” (2025) 5070",
+        name: "Razer Blade 16 (2025) 5070",
         pid: 0x02c6,
         features: &[
             "battery-care",
@@ -92,7 +92,7 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[0x0081,0x0086,0x0f90,0x0086,0x0f10,0x0087],
+        init_cmds: &[0x0081, 0x0086, 0x0f90, 0x0086, 0x0f10, 0x0087],
     },
     Descriptor {
         model_number_prefix: "RZ09-0421N",
@@ -106,8 +106,8 @@ pub const SUPPORTED: &[Descriptor] = &[
             "lights-always-on",
             "perf",
         ],
-        init_cmds : &[],
-    }
+        init_cmds: &[],
+    },
 ];
 
 const _VALIDATE_FEATURES: () = {

@@ -94,7 +94,10 @@ impl Device {
             if response.ensure_matches_report(&report).is_ok() {
                 return Ok(response);
             } else if attempt == MAX_RETRIES - 1 {
-                return Err(anyhow!("Failed to match report after {} attempts", MAX_RETRIES));
+                return Err(anyhow!(
+                    "Failed to match report after {} attempts",
+                    MAX_RETRIES
+                ));
             }
 
             // Add a small delay before retrying

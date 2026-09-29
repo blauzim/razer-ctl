@@ -47,9 +47,11 @@ macro_rules! impl_unary_handle_cli {
 macro_rules! impl_unary_handle_with_arg_cli {
     (<$arg_type:ty>($matches:ident, $device:ident, $name:literal, $arg_name:literal, $arg2:literal, $setter:path)) => {
         match $matches.subcommand() {
-            Some(($name, matches)) => {
-                $setter($device, *matches.get_one::<$arg_type>($arg_name).unwrap(), $arg2)?
-            }
+            Some(($name, matches)) => $setter(
+                $device,
+                *matches.get_one::<$arg_type>($arg_name).unwrap(),
+                $arg2,
+            )?,
             _ => (),
         }
     };
@@ -107,33 +109,31 @@ impl Cli for feature::BatteryCare {
 
     fn handle(&self, device: &device::Device, matches: &clap::ArgMatches) -> Result<()> {
         match matches.subcommand() {
-            Some((ident, sub_matches)) if ident == self.name() => {
-                match sub_matches.subcommand() {
-                    Some(("set", set_matches)) => {
-                        let percent = *set_matches.get_one::<u8>("PERCENT").unwrap();
-                        let mode = BatteryCare::from_percent(percent)?;
-                        command::set_battery_care(device, mode)?;
-                        info!("Battery care set to {}% limit", mode.to_percent());
-                        Ok(())
-                    }
-                    Some(("enable", _)) => {
-                        command::set_battery_care(device, BatteryCare::Percent80)?;
-                        info!("Battery care enabled (charge limit set to 80%)");
-                        Ok(())
-                    }
-                    Some(("disable", _)) => {
-                        command::set_battery_care(device, BatteryCare::Disable)?;
-                        info!("Battery care disabled (will charge to 100%)");
-                        Ok(())
-                    }
-                    Some(("get", _)) => {
-                        let current = command::get_battery_care(device)?;
-                        info!("Current battery care: {}%", current.to_percent());
-                        Ok(())
-                    }
-                    _ => Ok(()),
+            Some((ident, sub_matches)) if ident == self.name() => match sub_matches.subcommand() {
+                Some(("set", set_matches)) => {
+                    let percent = *set_matches.get_one::<u8>("PERCENT").unwrap();
+                    let mode = BatteryCare::from_percent(percent)?;
+                    command::set_battery_care(device, mode)?;
+                    info!("Battery care set to {}% limit", mode.to_percent());
+                    Ok(())
                 }
-            }
+                Some(("enable", _)) => {
+                    command::set_battery_care(device, BatteryCare::Percent80)?;
+                    info!("Battery care enabled (charge limit set to 80%)");
+                    Ok(())
+                }
+                Some(("disable", _)) => {
+                    command::set_battery_care(device, BatteryCare::Disable)?;
+                    info!("Battery care disabled (will charge to 100%)");
+                    Ok(())
+                }
+                Some(("get", _)) => {
+                    let current = command::get_battery_care(device)?;
+                    info!("Current battery care: {}%", current.to_percent());
+                    Ok(())
+                }
+                _ => Ok(()),
+            },
             Some(("info", _)) => {
                 let current = command::get_battery_care(device)?;
                 info!("{}: {}%", self.name(), current.to_percent());
@@ -176,7 +176,7 @@ impl Cli for CustomCommand {
             Some((ident, matches)) if ident == self.name() => {
                 let cmd = *matches.get_one::<u16>("COMMAND").unwrap();
                 let args: Vec<u8> = matches.get_many::<u8>("ARGS").unwrap().copied().collect();
-                println!("Running custom command: {:x?} {:?}", cmd, args);
+                println!("Running custom command: {cmd:x?} {args:?}");
                 command::custom_command(device, cmd, &args)
             }
             _ => Ok(()),
@@ -191,7 +191,7 @@ impl Cli for feature::Fan {
                 .about("Control fan")
                 .subcommand(clap::Command::new("auto").about("Set fan mode to auto"))
                 .subcommand(clap::Command::new("manual").about("Set fan mode to manual"))
-                .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(u16).range(2000..=5000)}, "rpm", "RPM", "Set fan rpm", "Fan RPM in range [2000, 5000]"})
+                .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(u16).range(librazer::types::FAN_RPM_MIN as i64..=librazer::types::FAN_RPM_MAX as i64)}, "rpm", "RPM", "Set fan rpm", "Fan RPM in range [0, 5500]"})
                 .subcommand(impl_unary_cmd_cli!{{clap::value_parser!(MaxFanSpeedMode)}, "max", "MAX", "Control Max Fan Speed Mode", "Max Fan Speed Mode"})
                 .arg_required_else_help(true),
         )
@@ -211,7 +211,9 @@ impl Cli for feature::Fan {
             }
             Some(("info", _)) => {
                 match command::get_perf_mode(device) {
-                    Ok((_, fan_mode @ FanMode::Auto)) => {println!("Fan: {:?}", fan_mode)},
+                    Ok((_, fan_mode @ FanMode::Auto)) => {
+                        println!("Fan: {fan_mode:?}")
+                    }
                     Ok((_, fan_mode @ FanMode::Manual)) => {
                         println!(
                             "Fan set to: {:?}@{:?} RPM",
@@ -219,7 +221,7 @@ impl Cli for feature::Fan {
                             command::get_fan_rpm(device, FanZone::Zone1)
                         )
                     }
-                    Err(e) => println!("{}", e),
+                    Err(e) => println!("{e}"),
                 };
                 println!(
                     "Fan actual: {:?} RPM",
@@ -254,12 +256,12 @@ impl Cli for feature::Perf {
             }
             Some(("info", _)) => {
                 let perf_mode = command::get_perf_mode(device);
-                println!("Performance: {:?}", perf_mode);
+                println!("Performance: {perf_mode:?}");
                 if let Ok((PerfMode::Custom, _)) = perf_mode {
                     let cpu_boost = command::get_cpu_boost(device);
                     let gpu_boost = command::get_gpu_boost(device);
-                    println!("CPU: {:?}", cpu_boost);
-                    println!("GPU: {:?}", gpu_boost);
+                    println!("CPU: {cpu_boost:?}");
+                    println!("GPU: {gpu_boost:?}");
 
                     if let (Ok(CpuBoost::Boost) | Ok(CpuBoost::Undervolt), Ok(GpuBoost::High)) =
                         (cpu_boost, gpu_boost)
@@ -275,7 +277,7 @@ impl Cli for feature::Perf {
                     device,
                     0x0d88,
                     &[0, 1, 0]);
-                    println!("Rssponse: {:?}",response); 
+                    println!("Rssponse: {:?}",response);
                 */
                 Ok(())
             }
@@ -287,21 +289,21 @@ impl Cli for feature::Perf {
 fn enumerate() -> Result<()> {
     let (pid_list, model_number_prefix) = device::Device::enumerate()?;
 
-    println!("Model: {}", model_number_prefix);
+    println!("Model: {model_number_prefix}");
     println!(
         "Supported: {}",
         librazer::descriptor::SUPPORTED
             .iter()
             .any(|supported| model_number_prefix == supported.model_number_prefix)
     );
-    println!("PID: {:#06x?}", pid_list);
+    println!("PID: {pid_list:#06x?}");
     Ok(())
 }
 
 fn taskkill() -> Result<()> {
     // Run nvidia-smi to get PIDs of GPU processes
     let output = procCommand::new("nvidia-smi")
-        .args(&["--query-compute-apps=pid", "--format=csv,noheader"])
+        .args(["--query-compute-apps=pid", "--format=csv,noheader"])
         .output()
         .expect("Failed to execute nvidia-smi");
 
@@ -321,7 +323,7 @@ fn taskkill() -> Result<()> {
         return Ok(());
     }
 
-    println!("GPU-using PIDs found: {:?}", pids);
+    println!("GPU-using PIDs found: {pids:?}");
 
     let mut sys = System::new_all();
     sys.refresh_processes();
@@ -331,12 +333,12 @@ fn taskkill() -> Result<()> {
             println!("Killing process {} ({})", pid, process.name());
             // Send SIGKILL to the process
             if process.kill_with(Signal::Kill).unwrap_or(false) {
-                println!("Successfully killed PID {}", pid);
+                println!("Successfully killed PID {pid}");
             } else {
-                eprintln!("Failed to kill PID {}", pid);
+                eprintln!("Failed to kill PID {pid}");
             }
         } else {
-            eprintln!("Process with PID {} not found", pid);
+            eprintln!("Process with PID {pid} not found");
         }
     }
     Ok(())
@@ -374,7 +376,7 @@ fn gen_cli_features(feature_list: &[&str]) -> Vec<Box<dyn Cli>> {
 
 fn main() -> Result<()> {
     env_logger::init();
-    
+
     let info_cmd = clap::Command::new("info").about("Get device info");
     let auto_cmd = clap::Command::new("auto")
         .about("Automatically detect supported Razer device and enable device specific features")
@@ -431,7 +433,7 @@ fn main() -> Result<()> {
                 name: "Unknown",
                 pid: *submatches.get_one::<u16>("pid").unwrap(),
                 features: feature::ALL_FEATURES,
-                init_cmds : &[]
+                init_cmds: &[],
             })?;
             handle(&device, submatches, &cli_features)?;
         }
